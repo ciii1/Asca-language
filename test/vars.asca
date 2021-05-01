@@ -1,0 +1,8 @@
+byte str = "a"
+word num = 20
+num = "a"
+str = 97
+if(str == num) {
+	print("string is an int")
+}
+print("string is not an int")

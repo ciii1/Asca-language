@@ -1,0 +1,6 @@
+a = square(20)
+print(a)
+
+func square(dword x) {
+	return x*x
+}
