@@ -112,8 +112,30 @@ def parse_variable_declaration(state):
         return state
 
 def parse_expression(state):
-    throw_parse_error("Expected a variable or literals", state)
+    res = True
+    while res:
+        res = parse_addition(state)
+        if res is not None:
+
+        res = parse_subtraction(state)
+        if res is not None:
+
+        res = parse_multiplication(state)
+        if res is not None:
+
+        res = parse_division(state)
+        if res is not None:
+            
+
     return None
+
+def parse_addition(state):
+
+def parse_subtraction(state):
+
+def parse_multiplication(state):
+
+def parse_division(state):
 
 
 def throw_parse_error(msg, state):
