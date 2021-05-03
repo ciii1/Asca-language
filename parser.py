@@ -8,6 +8,8 @@ class parser_state():
 
     def inc_position(self):
         self.pos += 1
+    def dec_position(self):
+        self.pos -= 1
     def jump_position(self, index):
         self.pos = index
 
@@ -24,7 +26,7 @@ class parser_state():
             return self.tokens[self.pos][0]
         else:
             return None
-    def get_token_len(self):
+    def get_tokens_len(self):
         return len(self.tokens)
     def get_pos(self):
         return self.pos
@@ -33,10 +35,15 @@ def parse(input):
     tokens = init_tokens(input)
     state = parser_state(tokens)
 
-    while state.get_pos() < state.get_token_len():
-        res = parse_variable_declaration(state)
+    while state.get_pos() < state.get_tokens_len():
+        #res = parse_variable_declaration(state)
+        #if res is not None:
+        #    state = res
+        #    continue
+        res = parse_expression(state)
         if res is not None:
             state = res
+            continue
         state.inc_position()
 
 def init_tokens(input):
@@ -45,40 +52,44 @@ def init_tokens(input):
     INT      = 'INT'
     ID       = 'ID'
     SIZE     = 'SIZE'
+    STRING   = 'STRING'
+    BOOL     = 'BOOL'
+    OPERATOR = 'OPERATOR'
     
     token_exprs = [
-        (r'[ \n\t]+',              None),
-        (r'#[^\n]*',               None),
-        (r'\=',                    RESERVED),
-        (r'\:',                    RESERVED),
-        (r'\(',                    RESERVED),
-        (r'\)',                    RESERVED),
-        (r'\{',                    RESERVED),
-        (r'\}',                    RESERVED),
-        (r';',                     RESERVED),
-        (r'\+',                    RESERVED),
-        (r'-',                     RESERVED),
-        (r'\*',                    RESERVED),
-        (r'/',                     RESERVED),
-        (r'<=',                    RESERVED),
-        (r'<',                     RESERVED),
-        (r'>=',                    RESERVED),
-        (r'>',                     RESERVED),
-        (r'=',                     RESERVED),
-        (r'!=',                    RESERVED),
-        (r'&&',                    RESERVED),
-        (r'\|\|',                  RESERVED),
-        (r'!',                     RESERVED),
-        (r'if',                    RESERVED),
-        (r'then',                  RESERVED),
-        (r'else',                  RESERVED),
-        (r'while',                 RESERVED),
-        (r'qword',                 SIZE),
-        (r'dword',                 SIZE),
-        (r'word',                  SIZE),
-        (r'byte',                  SIZE),
-        (r'[0-9]+',                INT),
-        (r'[A-Za-z][A-Za-z0-9_]*', ID)
+        (r'[ \n\t]+',                None),
+        (r'#[^\n]*',                 None),
+        (r'\=',                      RESERVED),
+        (r'\(',                      RESERVED),
+        (r'\)',                      RESERVED),
+        (r'\{',                      RESERVED),
+        (r'\}',                      RESERVED),
+        (r'\+',                      OPERATOR),
+        (r'-',                       OPERATOR),
+        (r'\*',                      OPERATOR),
+        (r'/',                       OPERATOR),
+        (r'<=',                      OPERATOR),
+        (r'<',                       OPERATOR),
+        (r'>=',                      OPERATOR),
+        (r'>',                       OPERATOR),
+        (r'=',                       OPERATOR),
+        (r'!=',                      OPERATOR),
+        (r'&&',                      OPERATOR),
+        (r'\|\|',                    OPERATOR),
+        (r'!',                       OPERATOR),
+        (r'if',                      RESERVED),
+        (r'then',                    RESERVED),
+        (r'else',                    RESERVED),
+        (r'while',                   RESERVED),
+        (r'qword',                   SIZE),
+        (r'dword',                   SIZE),
+        (r'word',                    SIZE),
+        (r'byte',                    SIZE),
+        (r'true|false',              BOOL),
+        (r'\".*?\"',                 STRING),
+        #(?<![0-9])[+-]? 
+        (r'[0-9]+',                  INT),
+        (r'[_A-Za-z][A-Za-z0-9_]*',  ID)
     ]
 
     return lexer.lex(input, token_exprs)
@@ -89,7 +100,7 @@ def parse_variable_declaration(state):
         return None
     state.inc_position()
     if state.get_token_type() != 'ID':
-        throw_parse_error("Expected a variable name", state)
+        throw_parse_error("Illegal identifier name", state)
         return None
     state.inc_position()
     if state.get_token_val() != ':':
@@ -112,31 +123,23 @@ def parse_variable_declaration(state):
         return state
 
 def parse_expression(state):
-    res = True
-    while res:
-        res = parse_addition(state)
-        if res is not None:
+    if not is_value(state.get_token_type()):
+        return None
 
-        res = parse_subtraction(state)
-        if res is not None:
 
-        res = parse_multiplication(state)
-        if res is not None:
+  
+    return state
 
-        res = parse_division(state)
-        if res is not None:
-            
-
-    return None
-
-def parse_addition(state):
-
-def parse_subtraction(state):
-
-def parse_multiplication(state):
-
-def parse_division(state):
-
+def is_value(token_type):
+    if token_type is "INT":
+        return True
+    elif token_type is "STRING":
+        return True
+    elif token_type is "BOOL":
+        return True
+    elif token_type is "ID":
+        return True
+    return False
 
 def throw_parse_error(msg, state):
     sys.stderr.write("Error: %s at token %s \n" % (msg, state.get_pos()+1))
@@ -144,3 +147,9 @@ def throw_parse_error(msg, state):
 def throw_EOF_error(msg):
     sys.stderr.write("Error: %s \n" % msg)
     sys.exit(1)
+
+def is_tag_id(token_type, tag):
+    if token_type is tag or token_type == "ID":
+        return True
+    else:
+        return False
