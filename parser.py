@@ -122,22 +122,69 @@ def parse_variable_declaration(state):
     else:
         return state
 
+#parsing expression using an algorithm based on the FORTRAN 1 compiler
+#for more info, see https://en.wikipedia.org/wiki/Operator-precedence_parser#Pratt_parsing                    
+#                   at the "Alternative Method" section
 def parse_expression(state):
+    output = []
+
     if not is_value(state.get_token_type()):
         return None
+    while True:
+        tmp = []
 
+        tmp.append(state.get_token_val())
+        print(tmp)
 
-  
+        break
+        if is_value(state.get_token_type()):
+            if state.get_token_type() != "OPERATOR" and \
+              state.get_token_val() != ")":
+               break
+
+        elif state.get_token_type() == "+" or \
+           state.get_token_type() == "-":
+            output.append([tmp])
+            tmp = []
+            if not is_value(state.get_token_type()) and \
+               state.get_token_val() != "(":
+                break
+
+        elif state.get_token_type() == "*" or \
+           state.get_token_type() == "/":
+            output.append(tmp)
+            tmp = []
+            if not is_value(state.get_token_type()) and \
+               state.get_token_val() != "(":
+                break
+        
+        elif state.get_token_type() == "(":
+            output.append(tmp)
+            tmp = []
+            if not is_value(state.get_token_type()) and \
+               state.get_token_val() != "(":
+                break
+
+        elif state.get_token_type() == ")":
+            output.append([[tmp]])
+            tmp = []
+            if state.get_token_type() != "OPERATOR" and \
+               state.get_token_val() != ")":
+                break
+
+        state.inc_position()
+            
+#    print(output)
     return state
 
 def is_value(token_type):
-    if token_type is "INT":
+    if token_type == "INT":
         return True
-    elif token_type is "STRING":
+    elif token_type == "STRING":
         return True
-    elif token_type is "BOOL":
+    elif token_type == "BOOL":
         return True
-    elif token_type is "ID":
+    elif token_type == "ID":
         return True
     return False
 
