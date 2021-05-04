@@ -74,6 +74,7 @@ def init_tokens(input):
         (r'\)',                      RESERVED),
         (r'\{',                      RESERVED),
         (r'\}',                      RESERVED),
+        (r'(?<![0-9])[+-]?[0-9]+',   INT),
         (r'\+',                      OPERATOR),
         (r'-',                       OPERATOR),
         (r'\*',                      OPERATOR),
@@ -97,8 +98,6 @@ def init_tokens(input):
         (r'byte',                    SIZE),
         (r'true|false',              BOOL),
         (r'\".*?\"',                 STRING),
-        #(?<![0-9])[+-]? 
-        (r'[0-9]+',                  INT),
         (r'[_A-Za-z][A-Za-z0-9_]*',  ID)
     ]
 
