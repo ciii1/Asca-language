@@ -2,5 +2,5 @@ import parser
 
 code = input("%>")
 while code:
-    parser.parse(code)
-    code = input("%>")
+    print(parser.parse(code), "\n")
+    code = input("%>")  

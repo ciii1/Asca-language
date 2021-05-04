@@ -1,10 +1,12 @@
 import lexer
 import sys
+from ast import literal_eval
 
 class parser_state():
     def __init__ (self, tokens, pos=0):
         self.tokens = tokens
         self.pos = pos
+        self.output = []
 
     def inc_position(self):
         self.pos += 1
@@ -13,8 +15,10 @@ class parser_state():
     def jump_position(self, index):
         self.pos = index
 
-    def add_output(self, out):
-        self.output += out
+    def set_output(self, out):
+        self.output = out
+    def get_output(self):
+        return self.output
 
     def get_token_type(self):
         if self.pos < len(self.tokens):
@@ -34,17 +38,22 @@ class parser_state():
 def parse(input):
     tokens = init_tokens(input)
     state = parser_state(tokens)
+    state.jump_position(-1)
+    output = []
 
     while state.get_pos() < state.get_tokens_len():
-        #res = parse_variable_declaration(state)
-        #if res is not None:
-        #    state = res
-        #    continue
+        state.inc_position()
+        res = parse_variable_declaration(state)
+        if res is not None:
+            state = res
+            output.append(state.get_output())
+            continue
         res = parse_expression(state)
         if res is not None:
             state = res
+            output.append(state.get_output())
             continue
-        state.inc_position()
+    return output
 
 def init_tokens(input):
 
@@ -60,6 +69,7 @@ def init_tokens(input):
         (r'[ \n\t]+',                None),
         (r'#[^\n]*',                 None),
         (r'\=',                      RESERVED),
+        (r'\:',                      RESERVED),
         (r'\(',                      RESERVED),
         (r'\)',                      RESERVED),
         (r'\{',                      RESERVED),
@@ -96,10 +106,21 @@ def init_tokens(input):
 
 
 def parse_variable_declaration(state):
-    if state.get_token_type() != 'SIZE':
+    output = {
+        "size": None,
+        "id": None,
+        "type": None,
+        "init": None,
+    }
+    if state.get_token_type() == 'SIZE':
+        output["size"] = state.get_token_val()
+    else:
         return None
+
     state.inc_position()
-    if state.get_token_type() != 'ID':
+    if state.get_token_type() == 'ID':
+        output["id"] = state.get_token_val()
+    else:
         throw_parse_error("Illegal identifier name", state)
         return None
     state.inc_position()
@@ -107,76 +128,72 @@ def parse_variable_declaration(state):
         throw_parse_error("Expected a colon", state)
         return None
     state.inc_position()
-    if state.get_token_type() != 'ID':
+    if state.get_token_type() == 'ID':
+        output["type"] = state.get_token_val()
+    else:
         throw_parse_error("Expected a type", state)
         return None
     state.inc_position()
     if state.get_token_val() == '=':
         state.inc_position()
         res = parse_expression(state)
-        if res is None:
+        if res is not None:
+            state = res
+            output["init"] = state.get_output()
+            state.set_output(output)
+            return state
+        else:
             throw_parse_error("Expected a value", state)
             return None
-        else:
-            return state
     else:
+        state.set_output(output)
         return state
 
-#parsing expression using an algorithm based on the FORTRAN 1 compiler
-#for more info, see https://en.wikipedia.org/wiki/Operator-precedence_parser#Pratt_parsing                    
-#                   at the "Alternative Method" section
 def parse_expression(state):
     output = []
 
-    if not is_value(state.get_token_type()):
+    if is_value(state.get_token_type()):
+        output.append([parse_value(state)])
+    else:
         return None
+
     while True:
-        tmp = []
-
-        tmp.append(state.get_token_val())
-        print(tmp)
-
-        break
         if is_value(state.get_token_type()):
-            if state.get_token_type() != "OPERATOR" and \
-              state.get_token_val() != ")":
-               break
-
-        elif state.get_token_type() == "+" or \
-           state.get_token_type() == "-":
-            output.append([tmp])
-            tmp = []
-            if not is_value(state.get_token_type()) and \
-               state.get_token_val() != "(":
+            state.inc_position()
+            if state.get_token_type() != 'OPERATOR':
                 break
+        if state.get_token_val() == "+" or\
+           state.get_token_val() == "-":
+            output.append(parse_value(state))
+            state.inc_position()
+            if is_value(state.get_token_type()):
+                output.append([parse_value(state)])
+            else:
+                throw_parse_error("expected an operand", state)
+                return None
 
-        elif state.get_token_type() == "*" or \
-           state.get_token_type() == "/":
-            output.append(tmp)
-            tmp = []
-            if not is_value(state.get_token_type()) and \
-               state.get_token_val() != "(":
-                break
-        
-        elif state.get_token_type() == "(":
-            output.append(tmp)
-            tmp = []
-            if not is_value(state.get_token_type()) and \
-               state.get_token_val() != "(":
-                break
+        if state.get_token_val() == "*" or\
+           state.get_token_val() == "/":
+            if type(output[-1]) is list:
+                output[-1].append(parse_value(state))
+                state.inc_position()
+                if is_value(state.get_token_type()):
+                    output[-1].append(parse_value(state))
+                else:
+                    throw_parse_error("expected an operand", state)
+                    return None
+            else:
+                output.append(parse_value(state))
+                state.inc_position()
+                if is_value(state.get_token_type()):
+                    output.append([parse_value(state)])
+                else:
+                    throw_parse_error("expected an operand", state)
+                    return None
 
-        elif state.get_token_type() == ")":
-            output.append([[tmp]])
-            tmp = []
-            if state.get_token_type() != "OPERATOR" and \
-               state.get_token_val() != ")":
-                break
-
-        state.inc_position()
-            
-#    print(output)
+    state.set_output(output)
     return state
-
+    
 def is_value(token_type):
     if token_type == "INT":
         return True
@@ -187,6 +204,21 @@ def is_value(token_type):
     elif token_type == "ID":
         return True
     return False
+
+def parse_value(state):
+    token_type = state.get_token_type()
+    value = state.get_token_val()
+    if token_type == "INT":
+        return {"type": "int", "value": value}
+    elif token_type == "STRING":
+        return {"type": "string", "value": value}
+    elif token_type == "BOOL":
+        return {"type": "bool", "value": value}
+    elif token_type == "ID":
+        return {"type": "identifier", "value": value}
+    elif token_type == "OPERATOR":
+        return {"type": "operator", "value": value}
+    return None
 
 def throw_parse_error(msg, state):
     sys.stderr.write("Error: %s at token %s \n" % (msg, state.get_pos()+1))
