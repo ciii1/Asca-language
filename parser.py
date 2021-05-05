@@ -66,39 +66,39 @@ def init_tokens(input):
     OPERATOR = 'OPERATOR'
     
     token_exprs = [
-        (r'[ \n\t]+',                None),
-        (r'#[^\n]*',                 None),
-        (r'\=',                      RESERVED),
-        (r'\:',                      RESERVED),
-        (r'\(',                      RESERVED),
-        (r'\)',                      RESERVED),
-        (r'\{',                      RESERVED),
-        (r'\}',                      RESERVED),
-        (r'(?<![0-9])[+-]?[0-9]+',   INT),
-        (r'\+',                      OPERATOR),
-        (r'-',                       OPERATOR),
-        (r'\*',                      OPERATOR),
-        (r'/',                       OPERATOR),
-        (r'<=',                      OPERATOR),
-        (r'<',                       OPERATOR),
-        (r'>=',                      OPERATOR),
-        (r'>',                       OPERATOR),
-        (r'=',                       OPERATOR),
-        (r'!=',                      OPERATOR),
-        (r'&&',                      OPERATOR),
-        (r'\|\|',                    OPERATOR),
-        (r'!',                       OPERATOR),
-        (r'if',                      RESERVED),
-        (r'then',                    RESERVED),
-        (r'else',                    RESERVED),
-        (r'while',                   RESERVED),
-        (r'qword',                   SIZE),
-        (r'dword',                   SIZE),
-        (r'word',                    SIZE),
-        (r'byte',                    SIZE),
-        (r'true|false',              BOOL),
-        (r'\".*?\"',                 STRING),
-        (r'[_A-Za-z][A-Za-z0-9_]*',  ID)
+        (r'[ \n\t]+',                       None),
+        (r'#[^\n]*',                        None),
+        (r'\=',                             RESERVED),
+        (r'\:',                             RESERVED),
+        (r'\(',                             RESERVED),
+        (r'\)',                             RESERVED),
+        (r'\{',                             RESERVED),
+        (r'\}',                             RESERVED),
+        (r'(?<![0-9"a-zA-Z_)])[+-]?[0-9]+', INT),
+        (r'\+',                             OPERATOR),
+        (r'-',                              OPERATOR),
+        (r'\*',                             OPERATOR),
+        (r'/',                              OPERATOR),
+        (r'<=',                             OPERATOR),
+        (r'<',                              OPERATOR),
+        (r'>=',                             OPERATOR),
+        (r'>',                              OPERATOR),
+        (r'=',                              OPERATOR),
+        (r'!=',                             OPERATOR),
+        (r'&&',                             OPERATOR),
+        (r'\|\|',                           OPERATOR),
+        (r'!',                              OPERATOR),
+        (r'if',                             RESERVED),
+        (r'then',                           RESERVED),
+        (r'else',                           RESERVED),
+        (r'while',                          RESERVED),
+        (r'qword',                          SIZE),
+        (r'dword',                          SIZE),
+        (r'word',                           SIZE),
+        (r'byte',                           SIZE),
+        (r'true|false',                     BOOL),
+        (r'\".*?\"',                        STRING),
+        (r'[_A-Za-z][A-Za-z0-9_]*',         ID)
     ]
 
     return lexer.lex(input, token_exprs)
@@ -106,10 +106,13 @@ def init_tokens(input):
 
 def parse_variable_declaration(state):
     output = {
-        "size": None,
-        "id": None,
-        "type": None,
-        "init": None,
+        "context": "variable_declaration",
+        "content": {
+            "size": None,
+            "id": None,
+            "type": None,
+            "init": None,
+        }
     }
     if state.get_token_type() == 'SIZE':
         output["size"] = state.get_token_val()
@@ -135,7 +138,7 @@ def parse_variable_declaration(state):
     state.inc_position()
     if state.get_token_val() == '=':
         state.inc_position()
-        res = parse_expression(state)
+        res = parse_expression_recursive(state)
         if res is not None:
             state = res
             output["init"] = state.get_output()
@@ -149,46 +152,110 @@ def parse_variable_declaration(state):
         return state
 
 def parse_expression(state):
+    output = {
+        "context": "expression",
+        "content": None
+    }
+    res = parse_expression_recursive(state)
+    if res is not None:
+        state = res
+        output['content'] = state.get_output()
+        state.set_output(output)
+        return state
+    else:
+        return None
+
+def parse_expression_brackets(state):
+    output = []
+    if state.get_token_val() != "(":
+        return None
+
+    state.inc_position()
+    res = parse_expression_recursive(state, True)
+    if res is not None:
+        state = res
+        output.append(res.get_output())
+        state.set_output(output)
+    else:
+        throw_parse_error("expected an operand",state)
+        return None
+
+    if state.get_token_val() != ")":
+        throw_parse_error("expected a ')'", state)
+        return None
+
+    state.inc_position()
+
+    return state
+
+def parse_expression_recursive(state, in_brackets=False):
     output = []
 
     if is_value(state.get_token_type()):
         output.append([parse_value(state)])
+    elif state.get_token_val() == "(":
+        res = parse_expression_brackets(state)
+        if res is not None:
+            state = res
+            output.append(state.get_output())
+        else:
+            return None
     else:
         return None
 
     while True:
         if is_value(state.get_token_type()):
             state.inc_position()
-            if state.get_token_type() != 'OPERATOR':
+            if state.get_token_type() != "OPERATOR" and\
+               state.get_token_val() != ")":
                 break
-        if state.get_token_val() == "+" or\
-           state.get_token_val() == "-":
+            elif state.get_token_val() == ")":
+                if in_brackets:
+                    break
+                else:
+                    throw_parse_error("expected a starting '('", state)
+                    return None
+
+        elif state.get_token_val() == "(":
+            res = parse_expression_brackets(state)
+            if res is not None:
+                state = res
+                if len(output) > 0:
+                    if type(output[-1]) is list:
+                        output[-1].append(state.get_output())
+                    else:
+                        output.append(state.get_output())
+                else:
+                    output.append(state.get_output())
+            else:
+                return None
+
+        elif state.get_token_val() == "+" or\
+             state.get_token_val() == "-":
             output.append(parse_value(state))
             state.inc_position()
             if is_value(state.get_token_type()):
                 output.append([parse_value(state)])
+            elif state.get_token_val() == "(":
+                continue
             else:
                 throw_parse_error("expected an operand", state)
                 return None
 
-        if state.get_token_val() == "*" or\
-           state.get_token_val() == "/":
-            if type(output[-1]) is list:
+        elif state.get_token_val() == "*" or\
+             state.get_token_val() == "/":
+            output[-1].append(parse_value(state))
+            state.inc_position()
+            if is_value(state.get_token_type()):
                 output[-1].append(parse_value(state))
-                state.inc_position()
-                if is_value(state.get_token_type()):
-                    output[-1].append(parse_value(state))
-                else:
-                    throw_parse_error("expected an operand", state)
-                    return None
+            elif state.get_token_val() == "(":
+                continue
             else:
-                output.append(parse_value(state))
-                state.inc_position()
-                if is_value(state.get_token_type()):
-                    output.append([parse_value(state)])
-                else:
-                    throw_parse_error("expected an operand", state)
-                    return None
+                throw_parse_error("expected an operand", state)
+                return None
+
+        else:
+            break
 
     state.set_output(output)
     return state
