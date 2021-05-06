@@ -23,15 +23,11 @@ def lex(characters, token_exprs):
 
     line = 1
     char = 0
+    char_before_line = 0
 
     tokens = []
     while pos < len(characters):
         match = None
-
-        if characters[pos] == "\n":
-            line += 1
-            char = 0
-
         for token_expr in token_exprs:
             pattern, tag = token_expr
             regex = re.compile(pattern)
@@ -45,7 +41,10 @@ def lex(characters, token_exprs):
             sys.stderr.write('Illegal character: %s at line %s: %s \n' % (characters[pos], line, char+1))
             sys.exit(1)
         else:
+            if characters[pos] == "\n":
+                line += 1
+                char_before_line = match.end(0)
             pos = match.end(0)
-            char = pos
+            char = match.end(0) - char_before_line
     
     return tokens

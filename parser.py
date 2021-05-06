@@ -6,6 +6,7 @@ class parser_state():
         self.tokens = tokens
         self.pos = pos
         self.output = []
+        self.is_error = False
 
     def inc_position(self):
         self.pos += 1
@@ -63,7 +64,8 @@ def parse(input):
             state = res
             output.append(state.get_output())
             continue
-    return output
+    state.set_output(output)
+    return state
 
 def init_tokens(input):
 
@@ -77,6 +79,7 @@ def init_tokens(input):
     CHAR     = 'CHAR'
     
     token_exprs = [
+        (r'\n',                             None),
         (r'[ \n\t]+',                       None),
         (r'#[^\n]*',                        None),
         (r'\=',                             RESERVED),
@@ -180,7 +183,7 @@ def parse_expression(state):
     else:
         return None
 
-def parse_expression_brackets(state):
+def parse_expression_brackets(state, in_brackets = False):
     output = []
     if state.get_token_val() != "(":
         return None
@@ -206,6 +209,20 @@ def parse_expression_brackets(state):
 
     state.inc_position()
 
+    #do some error handling here,
+    #if we're in brackets, then expect an operator or ')' after us
+
+    #if we're not in brackets but there is a closing ')' after us
+    if state.get_token_val() == ")":
+        if not in_brackets:
+            throw_parse_error("expected a starting '('", state)
+            return None
+    #if we're in brackets but its not an operator after us
+    elif state.get_token_type() != "OPERATOR" :
+        if in_brackets:
+            throw_parse_error("expected a starting '('", state)
+            return None
+
     return state
 
 def parse_expression_recursive(state, in_brackets=False):
@@ -217,7 +234,7 @@ def parse_expression_recursive(state, in_brackets=False):
         output.append([parse_value(state)])
 
     elif state.get_token_val() == "(":
-        res = parse_expression_brackets(state)
+        res = parse_expression_brackets(state, in_brackets)
         if res is not None:
             state = res
             #append the parsed tokens inside brackets to the output
@@ -235,7 +252,11 @@ def parse_expression_recursive(state, in_brackets=False):
             #else then it is the end of the expression
             if state.get_token_type() != "OPERATOR" and\
                state.get_token_val() != ")":
-                break
+                if in_brackets:
+                    throw_parse_error("expected an operator", state)
+                    return None
+                else:
+                    break
             elif state.get_token_val() == ")":
                 #if the function were called from "parse_bracket"
                 #and the end of the expression is a bracket
@@ -250,7 +271,7 @@ def parse_expression_recursive(state, in_brackets=False):
                     return None
 
         elif state.get_token_val() == "(":
-            res = parse_expression_brackets(state)
+            res = parse_expression_brackets(state, in_brackets)
             if res is not None:
                 state = res
 
@@ -362,6 +383,7 @@ def parse_value(state):
 
 def throw_parse_error(msg, state):
     sys.stderr.write("Error: %s at line %s: %s \n" % (msg, state.get_token_line(), state.get_token_char()))
+    state.is_error = True
 
 def throw_EOF_error(msg):
     sys.stderr.write("Error: %s \n" % msg)
