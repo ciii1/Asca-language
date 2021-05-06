@@ -57,14 +57,13 @@ class parser_state():
         else:
             return self.tokens[-1].get_char()
 
-
 def parse(input):
     tokens = init_tokens(input)
     state = parser_state(tokens)
     state.jump_position(-1)
     output = []
 
-    while state.get_pos() < state.get_tokens_len():
+    while state.get_pos() < state.get_tokens_len()-1:
         state.inc_position()
         res = parse_variable_declaration(state)
         if res is not None:
@@ -75,6 +74,9 @@ def parse(input):
         if res is not None:
             state = res
             output.append(state.get_output())
+            continue
+        else:
+            throw_parse_error("expected an expression", state)
             continue
     state.set_output(output)
     return state
@@ -226,7 +228,8 @@ def parse_expression_brackets(state, in_brackets = False):
             throw_parse_error("expected a starting '('", state)
             return None
 
-    #if we're in brackets but its not an operator after us
+    #if we're in brackets but its not an operator after us,
+    #throw error cos an expression couldn't end inside a brackets
     elif state.peek_next_token_type() != "OPERATOR" :
         if in_brackets:
             throw_parse_error("expected an operator", state)
