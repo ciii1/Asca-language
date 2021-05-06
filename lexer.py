@@ -1,13 +1,37 @@
 import sys
 import re
 
-[[[{'type': 'int', 'value': '33'}, {'type': 'operator', 'value': '*'}, [[{'type': 'int', 'value': '3'}]], '+', [{'type': 'int', 'value': '2'}, {'type': 'operator', 'value': '*'}, {'type': 'int', 'value': '3'}]]]] 
+class token():
+    def __init__ (self, token, tag, char, line):
+        self.token = token
+        self.tag = tag
+        self.char = char
+        self.line = line
+
+    def get_line(self):
+        return self.line
+    def get_char(self):
+        return self.char
+
+    def get_token(self):
+        return self.token
+    def get_tag(self):
+        return self.tag
 
 def lex(characters, token_exprs):
     pos = 0
+
+    line = 1
+    char = 0
+
     tokens = []
     while pos < len(characters):
         match = None
+
+        if characters[pos] == "\n":
+            line += 1
+            char = 0
+
         for token_expr in token_exprs:
             pattern, tag = token_expr
             regex = re.compile(pattern)
@@ -15,12 +39,13 @@ def lex(characters, token_exprs):
             if match:
                 text = match.group(0)
                 if tag:
-                    token = (text, tag)
-                    tokens.append(token)
+                    tokens.append(token(text, tag, char, line))
                 break
         if not match:
-            sys.stderr.write('Illegal character: %s at char %s\n' % (characters[pos], pos+1))
+            sys.stderr.write('Illegal character: %s at line %s: %s \n' % (characters[pos], line, char+1))
             sys.exit(1)
         else:
             pos = match.end(0)
+            char = pos
+    
     return tokens

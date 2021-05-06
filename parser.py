@@ -13,6 +13,8 @@ class parser_state():
         self.pos -= 1
     def jump_position(self, index):
         self.pos = index
+    def get_pos(self):
+        return self.pos
 
     def set_output(self, out):
         self.output = out
@@ -21,18 +23,27 @@ class parser_state():
 
     def get_token_type(self):
         if self.pos < len(self.tokens):
-            return self.tokens[self.pos][1]
+            return self.tokens[self.pos].get_tag()
         else:
             return None
     def get_token_val(self):
         if self.pos < len(self.tokens):
-            return self.tokens[self.pos][0]
+            return self.tokens[self.pos].get_token()
         else:
             return None
     def get_tokens_len(self):
         return len(self.tokens)
-    def get_pos(self):
-        return self.pos
+
+    def get_token_line(self):
+        if self.pos < len(self.tokens):
+            return self.tokens[self.pos].get_line()
+        else:
+            return self.tokens[-1].get_line()
+    def get_token_char(self):
+        if self.pos < len(self.tokens):
+            return self.tokens[self.pos].get_char()+1
+        else:
+            return self.tokens[-1].get_char()
 
 def parse(input):
     tokens = init_tokens(input)
@@ -104,7 +115,6 @@ def init_tokens(input):
 
     return lexer.lex(input, token_exprs)
 
-
 def parse_variable_declaration(state):
     output = {
         "context": "variable_declaration",
@@ -139,7 +149,7 @@ def parse_variable_declaration(state):
     state.inc_position()
     if state.get_token_val() == '=':
         state.inc_position()
-        res = parse_expression_recursive(state)
+        res = parse_expression(state)
         if res is not None:
             state = res
             output["content"]["init"] = state.get_output()
@@ -351,7 +361,7 @@ def parse_value(state):
     return None
 
 def throw_parse_error(msg, state):
-    sys.stderr.write("Error: %s at token %s \n" % (msg, state.get_pos()+1))
+    sys.stderr.write("Error: %s at line %s: %s \n" % (msg, state.get_token_line(), state.get_token_char()))
 
 def throw_EOF_error(msg):
     sys.stderr.write("Error: %s \n" % msg)
