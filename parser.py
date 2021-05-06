@@ -208,7 +208,6 @@ def parse_expression_brackets(state, in_brackets = False):
         output.append(res.get_output())
         state.set_output(output)
     else:
-        throw_parse_error("expected an operand",state)
         return None
 
     state.inc_position()
@@ -265,15 +264,17 @@ def parse_expression_recursive(state, in_brackets=False):
             #else then it is the end of the expression
             if state.peek_next_token_type() != "OPERATOR" and\
                state.peek_next_token_val() != ")":
+                #if we're in brackets, throw error, because the expression couldn't
+                #end inside brackets
                 if in_brackets:
-                    throw_parse_error("expected an operator", state)
+                    throw_parse_error("expected an operator or a ')'", state)
                     return None
                 else:
                     break
             elif state.peek_next_token_val() == ")":
                 #if the function were called from "parse_bracket"
                 #and the end of the expression is a bracket
-                #then it is the end of the expression
+                #then it is the end of the expression in brackets
 
                 if in_brackets:
                     break
