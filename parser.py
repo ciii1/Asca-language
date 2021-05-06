@@ -187,6 +187,8 @@ def parse_expression_brackets(state):
         throw_parse_error("expected an operand",state)
         return None
 
+    state.inc_position()
+
     #expect a closing bracket
     if state.get_token_val() != ")":
         throw_parse_error("expected a closing ')'", state)
@@ -369,4 +371,3 @@ def clean_tree(tree):
         else:
             output.append(i)
     return output
-    
