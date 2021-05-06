@@ -1,6 +1,5 @@
 import lexer
 import sys
-from ast import literal_eval
 
 class parser_state():
     def __init__ (self, tokens, pos=0):
