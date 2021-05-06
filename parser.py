@@ -8,10 +8,10 @@ class parser_state():
         self.output = []
         self.is_error = False
 
-    def inc_position(self):
-        self.pos += 1
-    def dec_position(self):
-        self.pos -= 1
+    def inc_position(self, n=1):
+        self.pos += n
+    def dec_position(self, n=1):
+        self.pos -= n
     def jump_position(self, index):
         self.pos = index
     def get_pos(self):
@@ -165,9 +165,8 @@ def parse_variable_declaration(state):
     else:
         throw_parse_error("Expected a type", state)
         return None
-    state.inc_position()
-    if state.get_token_val() == '=':
-        state.inc_position()
+    if state.peek_next_token_val() == '=':
+        state.inc_position(2)
         res = parse_expression(state)
         if res is not None:
             state = res
@@ -178,10 +177,6 @@ def parse_variable_declaration(state):
             throw_parse_error("Expected a value", state)
             return None
     else:
-        #we incremented the position in order to
-        #check if there is a "=", so we need to decrease
-        #it back
-        state.dec_position()
         state.set_output(output)
         return state
 
@@ -266,18 +261,16 @@ def parse_expression_recursive(state, in_brackets=False):
 
     while True:
         if is_value(state.get_token_type()):
-            state.inc_position()
-
             #expect an operator or a ')' after a value
             #else then it is the end of the expression
-            if state.get_token_type() != "OPERATOR" and\
-               state.get_token_val() != ")":
+            if state.peek_next_token_type() != "OPERATOR" and\
+               state.peek_next_token_val() != ")":
                 if in_brackets:
                     throw_parse_error("expected an operator", state)
                     return None
                 else:
                     break
-            elif state.get_token_val() == ")":
+            elif state.peek_next_token_val() == ")":
                 #if the function were called from "parse_bracket"
                 #and the end of the expression is a bracket
                 #then it is the end of the expression
@@ -289,6 +282,7 @@ def parse_expression_recursive(state, in_brackets=False):
                 else:
                     throw_parse_error("expected a starting '('", state)
                     return None
+            state.inc_position()
 
         elif state.get_token_val() == "(":
             res = parse_expression_brackets(state, in_brackets)
@@ -339,11 +333,6 @@ def parse_expression_recursive(state, in_brackets=False):
                 return None
         else:
             break
-
-    #to get here, we did a prediction on the infinite loop,
-    #so we incremented the position there,
-    #we must reset it back here
-    state.dec_position()
 
     #since we inserted a lot of operands on a sublist,
     #there could be a single operand on a sublist, so we
