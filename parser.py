@@ -171,6 +171,8 @@ def parse_expression_brackets(state):
         return None
 
     state.inc_position()
+
+    #parse the expression inside the bracket
     res = parse_expression_recursive(state, True)
     if res is not None:
         state = res
@@ -180,8 +182,9 @@ def parse_expression_brackets(state):
         throw_parse_error("expected an operand",state)
         return None
 
+    #expect a closing bracket
     if state.get_token_val() != ")":
-        throw_parse_error("expected a ')'", state)
+        throw_parse_error("expected a closing ')'", state)
         return None
 
     state.inc_position()
@@ -192,11 +195,15 @@ def parse_expression_recursive(state, in_brackets=False):
     output = []
 
     if is_value(state.get_token_type()):
+        #the first operand will always on a sub-list
+        #so the "*" and "/" is able to get inserted to it
         output.append([parse_value(state)])
+
     elif state.get_token_val() == "(":
         res = parse_expression_brackets(state)
         if res is not None:
             state = res
+            #append the parsed tokens inside brackets to the output
             output.append(state.get_output())
         else:
             return None
@@ -206,12 +213,21 @@ def parse_expression_recursive(state, in_brackets=False):
     while True:
         if is_value(state.get_token_type()):
             state.inc_position()
+
+            #expect an operator or a ')' after a value
+            #else then it is the end of the expression
             if state.get_token_type() != "OPERATOR" and\
                state.get_token_val() != ")":
                 break
             elif state.get_token_val() == ")":
+                #if the function were called from "parse_bracket"
+                #and the end of the expression is a bracket
+                #then it is the end of the expression
+
                 if in_brackets:
                     break
+                #but if its not inside a bracket, but found an ending ')'
+                #then throw error
                 else:
                     throw_parse_error("expected a starting '('", state)
                     return None
@@ -220,11 +236,11 @@ def parse_expression_recursive(state, in_brackets=False):
             res = parse_expression_brackets(state)
             if res is not None:
                 state = res
-                if len(output) > 0:
-                    if type(output[-1]) is list:
-                        output[-1].append(state.get_output())
-                    else:
-                        output.append(state.get_output())
+
+                #the expression inside brackets will always be inserted to
+                #the last element if it's sub-list on the output
+                if type(output[-1]) is list:
+                    output[-1].append(state.get_output())
                 else:
                     output.append(state.get_output())
             else:
@@ -232,10 +248,17 @@ def parse_expression_recursive(state, in_brackets=False):
 
         elif state.get_token_val() == "+" or\
              state.get_token_val() == "-":
+            #append the operator to the output
             output.append(parse_value(state))
+
             state.inc_position()
             if is_value(state.get_token_type()):
+                #an element after "+" or "-" operator will always be in a sublist
+                #so "*" and "/" could get inserted later to it
                 output.append([parse_value(state)])
+
+            #if the next element is a "(" then continue to the next round
+            #let the "(" handler above handles it
             elif state.get_token_val() == "(":
                 continue
             else:
@@ -244,6 +267,9 @@ def parse_expression_recursive(state, in_brackets=False):
 
         elif state.get_token_val() == "*" or\
              state.get_token_val() == "/":
+            #a "*" and "/" will always be inserted to 
+            #the last element, that's why we insert the numbers and operators
+            #inside a sub-list earlier.
             output[-1].append(parse_value(state))
             state.inc_position()
             if is_value(state.get_token_type()):
@@ -253,11 +279,13 @@ def parse_expression_recursive(state, in_brackets=False):
             else:
                 throw_parse_error("expected an operand", state)
                 return None
-
         else:
             break
 
-    state.set_output(output)
+    #since we inserted a lot of operands on a sublist,
+    #there could be a single operand on a sublist, so we
+    #need to get get those operands out of the sublist
+    state.set_output(clean_tree(output))
     return state
     
 def is_value(token_type):
@@ -293,8 +321,17 @@ def throw_EOF_error(msg):
     sys.stderr.write("Error: %s \n" % msg)
     sys.exit(1)
 
-def is_tag_id(token_type, tag):
-    if token_type is tag or token_type == "ID":
-        return True
-    else:
-        return False
+def clean_tree(tree):
+    output = []
+    for i in tree:
+        if type(i) is list:
+            if len(i) == 1:
+                if type(i[0]) is list:
+                    output.append(clean_tree(i[0]))
+                else:
+                    output.append(i[0])
+            elif len(i) > 1:
+                output.append(clean_tree(i))
+        else:
+            output.append(i)
+    return output
