@@ -63,6 +63,7 @@ def init_tokens(input):
     STRING   = 'STRING'
     BOOL     = 'BOOL'
     OPERATOR = 'OPERATOR'
+    CHAR     = 'CHAR'
     
     token_exprs = [
         (r'[ \n\t]+',                       None),
@@ -97,6 +98,7 @@ def init_tokens(input):
         (r'byte',                           SIZE),
         (r'true|false',                     BOOL),
         (r'\".*?\"',                        STRING),
+        (r'\'.*?\'',                        CHAR),
         (r'[_A-Za-z][A-Za-z0-9_]*',         ID)
     ]
 
@@ -114,13 +116,13 @@ def parse_variable_declaration(state):
         }
     }
     if state.get_token_type() == 'SIZE':
-        output["size"] = state.get_token_val()
+        output["content"]["size"] = state.get_token_val()
     else:
         return None
 
     state.inc_position()
     if state.get_token_type() == 'ID':
-        output["id"] = state.get_token_val()
+        output["content"]["id"] = state.get_token_val()
     else:
         throw_parse_error("Illegal identifier name", state)
         return None
@@ -130,7 +132,7 @@ def parse_variable_declaration(state):
         return None
     state.inc_position()
     if state.get_token_type() == 'ID':
-        output["type"] = state.get_token_val()
+        output["content"]["type"] = state.get_token_val()
     else:
         throw_parse_error("Expected a type", state)
         return None
@@ -140,13 +142,17 @@ def parse_variable_declaration(state):
         res = parse_expression_recursive(state)
         if res is not None:
             state = res
-            output["init"] = state.get_output()
+            output["content"]["init"] = state.get_output()
             state.set_output(output)
             return state
         else:
             throw_parse_error("Expected a value", state)
             return None
     else:
+        #we incremented the position in order to
+        #check if there is a "=", so we need to decrease
+        #it back
+        state.dec_position()
         state.set_output(output)
         return state
 
@@ -281,6 +287,11 @@ def parse_expression_recursive(state, in_brackets=False):
         else:
             break
 
+    #to get here, we did a prediction on the infinite loop,
+    #so we incremented the position there,
+    #we must reset it back here
+    state.dec_position()
+
     #since we inserted a lot of operands on a sublist,
     #there could be a single operand on a sublist, so we
     #need to get get those operands out of the sublist
@@ -291,6 +302,8 @@ def is_value(token_type):
     if token_type == "INT":
         return True
     elif token_type == "STRING":
+        return True
+    elif token_type == "CHAR":
         return True
     elif token_type == "BOOL":
         return True
@@ -304,7 +317,29 @@ def parse_value(state):
     if token_type == "INT":
         return {"type": "int", "value": value}
     elif token_type == "STRING":
+        #if it contains 2 or more character
+        if len(value) > 3:
+            value = value[1:-2]
+        #if it contains 0 char (specified 2 here cos the '"' is counted)
+        elif len(value) == 2:
+            throw_parse_error("a string literal cannot be empty", state)
+            return None
+        #if it contains  1 character
+        else:
+            value = value[1]
         return {"type": "string", "value": value}
+    elif token_type == "CHAR":
+        #if it contains 2 or more character
+        if len(value) > 3:
+            throw_parse_error("a char literal can only contain 1 character", state)
+            return None
+        #if it contains 0 char
+        elif len(value) == 2:
+            throw_parse_error("a char literal cannot be empty", state)
+            return None
+        #if it contains  1 character
+        else:
+            return {"type": "char", "value": value[1]}
     elif token_type == "BOOL":
         return {"type": "bool", "value": value}
     elif token_type == "ID":
@@ -334,3 +369,4 @@ def clean_tree(tree):
         else:
             output.append(i)
     return output
+    
