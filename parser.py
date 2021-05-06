@@ -34,6 +34,17 @@ class parser_state():
             return None
     def get_tokens_len(self):
         return len(self.tokens)
+    def peek_next_token_val(self, n=1):
+        if self.pos + n < len(self.tokens):
+            return self.tokens[self.pos+n].get_token()
+        else:
+            return None
+    def peek_next_token_type(self, n=1):
+        if self.pos + n < len(self.tokens):
+            return self.tokens[self.pos+n].get_tag()
+        else:
+            return None
+
 
     def get_token_line(self):
         if self.pos < len(self.tokens):
@@ -45,6 +56,7 @@ class parser_state():
             return self.tokens[self.pos].get_char()+1
         else:
             return self.tokens[-1].get_char()
+
 
 def parse(input):
     tokens = init_tokens(input)
@@ -77,6 +89,7 @@ def init_tokens(input):
     BOOL     = 'BOOL'
     OPERATOR = 'OPERATOR'
     CHAR     = 'CHAR'
+    FLOAT     = 'FLOAT'
     
     token_exprs = [
         (r'\n',                             None),
@@ -88,7 +101,10 @@ def init_tokens(input):
         (r'\)',                             RESERVED),
         (r'\{',                             RESERVED),
         (r'\}',                             RESERVED),
-        (r'(?<![0-9"a-zA-Z_)])[+-]?[0-9]+', INT),
+        (r"((?<![0-9\"a-zA-Z_)])[+-])?"+
+          "[0-9]+\.[0-9]+",                 FLOAT),
+        (r"((?<![0-9\"a-zA-Z_)])[+-])?"+
+          "[0-9]+",                         INT),
         (r'\+',                             OPERATOR),
         (r'-',                              OPERATOR),
         (r'\*',                             OPERATOR),
@@ -207,21 +223,25 @@ def parse_expression_brackets(state, in_brackets = False):
         throw_parse_error("expected a closing ')'", state)
         return None
 
-    state.inc_position()
-
     #do some error handling here,
     #if we're in brackets, then expect an operator or ')' after us
 
     #if we're not in brackets but there is a closing ')' after us
-    if state.get_token_val() == ")":
+    if state.peek_next_token_val() == ")":
         if not in_brackets:
             throw_parse_error("expected a starting '('", state)
             return None
+
     #if we're in brackets but its not an operator after us
-    elif state.get_token_type() != "OPERATOR" :
+    elif state.peek_next_token_type() != "OPERATOR" :
         if in_brackets:
-            throw_parse_error("expected a starting '('", state)
+            throw_parse_error("expected an operator", state)
             return None
+    #if there is an operator after us, increment the position
+    #so it wouldnt cause an error on the parser
+    else:
+        state.inc_position()
+
 
     return state
 
@@ -342,6 +362,8 @@ def is_value(token_type):
         return True
     elif token_type == "ID":
         return True
+    elif token_type == "FLOAT":
+        return True
     return False
 
 def parse_value(state):
@@ -379,6 +401,8 @@ def parse_value(state):
         return {"type": "identifier", "value": value}
     elif token_type == "OPERATOR":
         return {"type": "operator", "value": value}
+    elif token_type == "FLOAT":
+        return {"type": "float", "value": value}
     return None
 
 def throw_parse_error(msg, state):

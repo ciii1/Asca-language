@@ -1,0 +1,5 @@
+qword a: int = 302-2
+qword b: float
+11+2*(3+21*2)-2
+(31+2*2)*((32*1)+(32-3))
+qword a:int
