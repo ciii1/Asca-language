@@ -87,7 +87,7 @@ def catch_not_match(state):
     elif state.get_token_val() == "(":
         throw_parse_error("expected an ending for '('")
     elif state.get_token_val() != None:
-        throw_parse_error("unexpected character: %s " % state.get_token_val(), state)
+        throw_parse_error("unexpected token: %s " % state.get_token_val(), state)
     else:
         throw_parse_error("unexpected EOF", state)
 
@@ -109,16 +109,18 @@ def init_tokens(input):
         (r'#[^\n]*',                        None),
         (r'\=',                             RESERVED),
         (r'@',                              RESERVED),
+        (r'\[',                             RESERVED),
+        (r'\]',                             RESERVED),
         (r'\:',                             RESERVED),
         (r',',                              RESERVED),
         (r'\(',                             RESERVED),
         (r'\)',                             RESERVED),
         (r'\{',                             RESERVED),
         (r'\}',                             RESERVED),
-        (r"((?<![0-9\"a-zA-Z_)])[+-])?"+
-          "[0-9]+\.[0-9]+",                 FLOAT),
-        (r"((?<![0-9\"a-zA-Z_)])[+-])?"+
-          "[0-9]+",                         INT),
+        (r'((?<![0-9\"a-zA-Z_)])[+-])?'+
+          '[0-9]+\.[0-9]+',                 FLOAT),
+        (r'((?<![0-9\"a-zA-Z_)])[+-])?'+
+          '[0-9]+',                         INT),
         (r'\+',                             OPERATOR),
         (r'-',                              OPERATOR),
         (r'\*',                             OPERATOR),
@@ -153,31 +155,45 @@ def parse_variable_declaration(state):
         "context": "variable_declaration",
         "content": {
             "size": None,
+            "array-size": None,
             "id": None,
             "type": None,
             "init": None,
         }
     }
-    if state.get_token_type() == 'SIZE':
+    if state.get_token_type() == "SIZE":
         output["content"]["size"] = state.get_token_val()
     else:
         return None
 
     state.inc_position()
-    if state.get_token_type() == 'ID':
+    if state.get_token_val() == "[":
+        #expect a integer literal (VLA is not allowed in asca)
+        state.inc_position()
+        if state.get_token_type() != "INT":
+            throw_parse_error("expected an integer literal", state)
+
+        output["content"]["array-size"] = state.get_token_val()
+        state.inc_position()
+        if state.get_token_val() != "]":
+            throw_parse_error("expected a ']'", state)
+        state.inc_position()
+
+    if state.get_token_type() == "ID":
         output["content"]["id"] = state.get_token_val()
     else:
-        throw_parse_error("Illegal identifier name", state)
+        throw_parse_error("illegal identifier name", state)
+        return None
+
+    state.inc_position()
+    if state.get_token_val() != ":":
+        throw_parse_error("expected a colon", state)
         return None
     state.inc_position()
-    if state.get_token_val() != ':':
-        throw_parse_error("Expected a colon", state)
-        return None
-    state.inc_position()
-    if state.get_token_type() == 'ID':
+    if state.get_token_type() == "ID":
         output["content"]["type"] = state.get_token_val()
     else:
-        throw_parse_error("Expected a type", state)
+        throw_parse_error("expected a type", state)
         return None
     if state.peek_next_token_val() == '=':
         state.inc_position(2)
@@ -188,7 +204,7 @@ def parse_variable_declaration(state):
             state.set_output(output)
             return state
         else:
-            throw_parse_error("Expected a value", state)
+            throw_parse_error("expected a value", state)
             return None
     else:
         state.set_output(output)
