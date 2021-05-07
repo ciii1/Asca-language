@@ -9,10 +9,10 @@ if len(sys.argv) > 1:
     else:
         print(res.get_output())
 else:
-    code = input("%>")
+    code = input("@>")
     while code:
         res = parser.parse(code)
         if not res.is_error:
             print(res.get_output(), "\n")
-        code = input("%>")  
+        code = input("@>")  
 

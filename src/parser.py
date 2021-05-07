@@ -76,10 +76,20 @@ def parse(input):
             output.append(state.get_output())
             continue
         else:
-            throw_parse_error("expected an expression", state)
+            catch_not_match(state)
             continue
     state.set_output(output)
     return state
+
+def catch_not_match(state):
+    if state.get_token_val() == ")":
+        throw_parse_error("unexpected ')'", state)
+    elif state.get_token_val() == "(":
+        throw_parse_error("expected an ending for '('")
+    elif state.get_token_val() != None:
+        throw_parse_error("unexpected character: %s " % state.get_token_val(), state)
+    else:
+        throw_parse_error("unexpected EOF", state)
 
 def init_tokens(input):
 
@@ -91,14 +101,16 @@ def init_tokens(input):
     BOOL     = 'BOOL'
     OPERATOR = 'OPERATOR'
     CHAR     = 'CHAR'
-    FLOAT     = 'FLOAT'
+    FLOAT    = 'FLOAT'
     
     token_exprs = [
         (r'\n',                             None),
         (r'[ \n\t]+',                       None),
         (r'#[^\n]*',                        None),
         (r'\=',                             RESERVED),
+        (r'@',                              RESERVED),
         (r'\:',                             RESERVED),
+        (r',',                              RESERVED),
         (r'\(',                             RESERVED),
         (r'\)',                             RESERVED),
         (r'\{',                             RESERVED),
@@ -218,28 +230,7 @@ def parse_expression_brackets(state, in_brackets = False):
     if state.get_token_val() != ")":
         throw_parse_error("expected a closing ')'", state)
         return None
-
-    #do some error handling here,
-    #if we're in brackets, then expect an operator or ')' after us
-
-    #if we're not in brackets but there is a closing ')' after us
-    if state.peek_next_token_val() == ")":
-        if not in_brackets:
-            throw_parse_error("expected a starting '('", state)
-            return None
-
-    #if we're in brackets but its not an operator after us,
-    #throw error cos an expression couldn't end inside a brackets
-    elif state.peek_next_token_type() != "OPERATOR" :
-        if in_brackets:
-            throw_parse_error("expected an operator", state)
-            return None
-    #if there is an operator after us, increment the position
-    #so it wouldnt cause an error on the parser
-    else:
-        state.inc_position()
-
-
+        
     return state
 
 def parse_expression_recursive(state, in_brackets=False):
@@ -248,8 +239,12 @@ def parse_expression_recursive(state, in_brackets=False):
     if is_value(state.get_token_type()):
         #the first operand will always on a sub-list
         #so the "*" and "/" is able to get inserted to it
-        output.append([parse_value(state)])
-
+        res = parse_value(state)
+        if res is not None:
+            state = res
+            output.append([state.get_output()])
+        else:
+            return None
     elif state.get_token_val() == "(":
         res = parse_expression_brackets(state, in_brackets)
         if res is not None:
@@ -262,37 +257,10 @@ def parse_expression_recursive(state, in_brackets=False):
         return None
 
     while True:
-        if is_value(state.get_token_type()):
-            #expect an operator or a ')' after a value
-            #else then it is the end of the expression
-            if state.peek_next_token_type() != "OPERATOR" and\
-               state.peek_next_token_val() != ")":
-                #if we're in brackets, throw error, because the expression couldn't
-                #end inside brackets
-                if in_brackets:
-                    throw_parse_error("expected an operator or a ')'", state)
-                    return None
-                else:
-                    break
-            elif state.peek_next_token_val() == ")":
-                #if the function were called from "parse_bracket"
-                #and the end of the expression is a bracket
-                #then it is the end of the expression in brackets
-
-                if in_brackets:
-                    break
-                #but if its not inside a bracket, but found an ending ')'
-                #then throw error
-                else:
-                    throw_parse_error("expected a starting '('", state)
-                    return None
-            state.inc_position()
-
-        elif state.get_token_val() == "(":
+        if state.get_token_val() == "(":
             res = parse_expression_brackets(state, in_brackets)
             if res is not None:
                 state = res
-
                 #the expression inside brackets will always be inserted to
                 #the last element if it's sub-list on the output
                 if type(output[-1]) is list:
@@ -305,13 +273,21 @@ def parse_expression_recursive(state, in_brackets=False):
         elif state.get_token_val() == "+" or\
              state.get_token_val() == "-":
             #append the operator to the output
-            output.append(parse_value(state))
+            #note: we dont need to check if the parse_value
+            #returns None since this code we'll be only 
+            #executed if the current token is a "+" or a "-"
+            output.append(parse_value(state).get_output())
 
             state.inc_position()
             if is_value(state.get_token_type()):
                 #an element after "+" or "-" operator will always be in a sublist
                 #so "*" and "/" could get inserted later to it
-                output.append([parse_value(state)])
+                res = parse_value(state)
+                if res is not None:
+                    state = res
+                    output.append([state.get_output()])
+                else:
+                    return None
 
             #if the next element is a "(" then continue to the next round
             #let the "(" handler above handles it
@@ -326,17 +302,25 @@ def parse_expression_recursive(state, in_brackets=False):
             #a "*" and "/" will always be inserted to 
             #the last element, that's why we insert the numbers and operators
             #inside a sub-list earlier.
-            output[-1].append(parse_value(state))
+
+            output[-1].append(parse_value(state).get_output())
             state.inc_position()
             if is_value(state.get_token_type()):
-                output[-1].append(parse_value(state))
+                res = parse_value(state)
+                if res is not None:
+                    state = res
+                    output[-1].append(state.get_output())
+                else:
+                    return None
             elif state.get_token_val() == "(":
                 continue
             else:
                 throw_parse_error("expected an operand", state)
                 return None
-        else:
+        elif state.peek_next_token_type() != "OPERATOR":
             break
+        else:
+            state.inc_position()
 
     #since we inserted a lot of operands on a sublist,
     #there could be a single operand on a sublist, so we
@@ -363,11 +347,11 @@ def parse_value(state):
     token_type = state.get_token_type()
     value = state.get_token_val()
     if token_type == "INT":
-        return {"type": "int", "value": value}
+        state.set_output({"type": "int", "value": value})
     elif token_type == "STRING":
         #if it contains 2 or more character
         if len(value) > 3:
-            value = value[1:-2]
+            value = value[1:-1]
         #if it contains 0 char (specified 2 here cos the '"' is counted)
         elif len(value) == 2:
             throw_parse_error("a string literal cannot be empty", state)
@@ -375,7 +359,7 @@ def parse_value(state):
         #if it contains  1 character
         else:
             value = value[1]
-        return {"type": "string", "value": value}
+        state.set_output({"type": "string", "value": value})
     elif token_type == "CHAR":
         #if it contains 2 or more character
         if len(value) > 3:
@@ -387,16 +371,68 @@ def parse_value(state):
             return None
         #if it contains  1 character
         else:
-            return {"type": "char", "value": value[1]}
+            state.set_output({"type": "char", "value": value[1]})
     elif token_type == "BOOL":
         return {"type": "bool", "value": value}
     elif token_type == "ID":
-        return {"type": "identifier", "value": value}
+        #check if its a function
+        res = parse_function_call(state)
+        if res is not None:
+            state = res
+            #no need to set output cos it's already set by
+            #the parse_function_call function
+        else:
+            state.set_output({"type": "identifier", "value": value})
     elif token_type == "OPERATOR":
-        return {"type": "operator", "value": value}
+        state.set_output({"type": "operator", "value": value})
     elif token_type == "FLOAT":
-        return {"type": "float", "value": value}
-    return None
+        state.set_output({"type": "float", "value": value})
+    else:
+        return None
+    return state
+
+def parse_function_call(state):
+    output = {
+        "type": "function_call",
+        "value": None,
+        "parameters": []
+    }
+
+    if state.get_token_type() == "ID":
+        output["value"] = state.get_token_val()
+    else:
+        return None
+
+    if state.peek_next_token_val() != "(":
+        return None
+
+    state.inc_position(2)
+    if state.get_token_val() == ")":
+        output['parameters'] = None
+    else:
+        while True:
+            #parse the expresion inside, the second argument says to the
+            #expression parser that it's parsing inside brackets
+            res = parse_expression(state)
+            if res is not None:
+                state = res
+                output['parameters'].append(state.get_output())
+                state.inc_position()
+                if state.get_token_val() == ",":
+                    state.inc_position()
+                elif state.get_token_val() == ")":
+                    break
+                else:
+                    throw_parse_error("expected a ')'", state)
+                    return None
+            else:
+                #if it returns none, it means that there's an
+                #invalid expression inside the brackets
+                catch_not_match(state)
+                return None
+
+    state.set_output(output)
+    return state
 
 def throw_parse_error(msg, state):
     sys.stderr.write("Error: %s at line %s: %s \n" % (msg, state.get_token_line(), state.get_token_char()))

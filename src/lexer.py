@@ -1,5 +1,6 @@
 import sys
 import re
+import preprocessor
 
 class token():
     def __init__ (self, token, tag, char, line):
@@ -19,6 +20,7 @@ class token():
         return self.tag
 
 def lex(characters, token_exprs):
+    characters = preprocessor.preprocess(characters)
     pos = 0
 
     line = 1
