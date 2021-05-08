@@ -107,7 +107,6 @@ def init_tokens(input):
         (r'\n',                             None),
         (r'[ \n\t]+',                       None),
         (r'#[^\n]*',                        None),
-        (r'\=',                             RESERVED),
         (r'@',                              RESERVED),
         (r'\[',                             RESERVED),
         (r'\]',                             RESERVED),
@@ -121,6 +120,7 @@ def init_tokens(input):
           '[0-9]+\.[0-9]+',                 FLOAT),
         (r'((?<![0-9\"a-zA-Z_)])[+-])?'+
           '[0-9]+',                         INT),
+        (r'\=',                             OPERATOR),
         (r'\+',                             OPERATOR),
         (r'-',                              OPERATOR),
         (r'\*',                             OPERATOR),
@@ -258,7 +258,7 @@ def parse_expression_recursive(state, in_brackets=False):
         res = parse_value(state)
         if res is not None:
             state = res
-            output.append([state.get_output()])
+            output.append([[state.get_output()]])
         else:
             return None
     elif state.get_token_val() == "(":
@@ -266,7 +266,7 @@ def parse_expression_recursive(state, in_brackets=False):
         if res is not None:
             state = res
             #append the parsed tokens inside brackets to the output
-            output.append(state.get_output())
+            output.append([state.get_output()])
         else:
             return None
     else:
@@ -280,7 +280,10 @@ def parse_expression_recursive(state, in_brackets=False):
                 #the expression inside brackets will always be inserted to
                 #the last element if it's sub-list on the output
                 if type(output[-1]) is list:
-                    output[-1].append(state.get_output())
+                    if type(output[-1][-1]) is list:
+                        output[-1][-1].append(state.get_output())
+                    else:
+                        output[-1].append(state.get_output())
                 else:
                     output.append(state.get_output())
             else:
@@ -292,7 +295,7 @@ def parse_expression_recursive(state, in_brackets=False):
             #note: we dont need to check if the parse_value
             #returns None since this code we'll be only 
             #executed if the current token is a "+" or a "-"
-            output.append(parse_value(state).get_output())
+            output[-1].append(parse_value(state).get_output())
 
             state.inc_position()
             if is_value(state.get_token_type()):
@@ -301,7 +304,7 @@ def parse_expression_recursive(state, in_brackets=False):
                 res = parse_value(state)
                 if res is not None:
                     state = res
-                    output.append([state.get_output()])
+                    output[-1].append([state.get_output()])
                 else:
                     return None
 
@@ -319,19 +322,34 @@ def parse_expression_recursive(state, in_brackets=False):
             #the last element, that's why we insert the numbers and operators
             #inside a sub-list earlier.
 
-            output[-1].append(parse_value(state).get_output())
+            output[-1][-1].append(parse_value(state).get_output())
             state.inc_position()
             if is_value(state.get_token_type()):
                 res = parse_value(state)
                 if res is not None:
                     state = res
-                    output[-1].append(state.get_output())
+                    output[-1][-1].append(state.get_output())
                 else:
                     return None
             elif state.get_token_val() == "(":
                 continue
             else:
                 throw_parse_error("expected an operand", state)
+                return None
+        elif state.get_token_val() == "=":
+            output.append(parse_value(state).get_output())
+            state.inc_position()
+            if is_value(state.get_token_type()):
+                res = parse_value(state)
+                if res is not None:
+                    state = res
+                    output.append([[state.get_output()]])
+                else:
+                    return None
+            elif state.get_token_val() == "(":
+                continue
+            else:
+                throw_parse_error("expected a value", state)
                 return None
         elif state.peek_next_token_type() != "OPERATOR":
             break
