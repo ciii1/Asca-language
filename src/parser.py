@@ -22,7 +22,7 @@ class parser_state():
     def get_output(self):
         return self.output
 
-    def get_token_type(self):
+    def get_token_tag(self):
         if self.pos < len(self.tokens):
             return self.tokens[self.pos].get_tag()
         else:
@@ -39,7 +39,7 @@ class parser_state():
             return self.tokens[self.pos+n].get_token()
         else:
             return None
-    def peek_next_token_type(self, n=1):
+    def peek_next_token_tag(self, n=1):
         if self.pos + n < len(self.tokens):
             return self.tokens[self.pos+n].get_tag()
         else:
@@ -85,9 +85,12 @@ def catch_not_match(state):
     if state.get_token_val() == ")":
         throw_parse_error("unexpected ')'", state)
     elif state.get_token_val() == "(":
-        throw_parse_error("expected an ending for '('")
+        throw_parse_error("expected an ending for '('", state)
     elif state.get_token_val() != None:
-        throw_parse_error("unexpected token: %s " % state.get_token_val(), state)
+        if state.get_token_tag() == "STRING":
+            throw_parse_error("unexpected token with type string",state)
+        else:
+            throw_parse_error("unexpected token: %s " % state.get_token_val(), state)
     else:
         throw_parse_error("unexpected EOF", state)
 
@@ -116,10 +119,11 @@ def init_tokens(input):
         (r'\)',                             RESERVED),
         (r'\{',                             RESERVED),
         (r'\}',                             RESERVED),
-        (r'((?<![0-9\"a-zA-Z_)])[+-])?'+
-          '[0-9]+\.[0-9]+',                 FLOAT),
-        (r'((?<![0-9\"a-zA-Z_)])[+-])?'+
-          '[0-9]+',                         INT),
+        (r'[0-9]+\.[0-9]+',                 FLOAT),
+        (r'[0-9]+',                         INT),
+        (r'true|false',                     BOOL),
+        (r'\".*?\"',                        STRING),
+        (r'\'.*?\'',                        CHAR),
         (r'\=',                             OPERATOR),
         (r'\+',                             OPERATOR),
         (r'-',                              OPERATOR),
@@ -142,9 +146,6 @@ def init_tokens(input):
         (r'dword',                          SIZE),
         (r'word',                           SIZE),
         (r'byte',                           SIZE),
-        (r'true|false',                     BOOL),
-        (r'\".*?\"',                        STRING),
-        (r'\'.*?\'',                        CHAR),
         (r'[_A-Za-z][A-Za-z0-9_]*',         ID)
     ]
 
@@ -161,7 +162,7 @@ def parse_variable_declaration(state):
             "init": None,
         }
     }
-    if state.get_token_type() == "SIZE":
+    if state.get_token_tag() == "SIZE":
         output["content"]["size"] = state.get_token_val()
     else:
         return None
@@ -170,7 +171,7 @@ def parse_variable_declaration(state):
     if state.get_token_val() == "[":
         #expect a integer literal (VLA is not allowed in asca)
         state.inc_position()
-        if state.get_token_type() != "INT":
+        if state.get_token_tag() != "INT":
             throw_parse_error("expected an integer literal", state)
 
         output["content"]["array-size"] = state.get_token_val()
@@ -179,7 +180,7 @@ def parse_variable_declaration(state):
             throw_parse_error("expected a ']'", state)
         state.inc_position()
 
-    if state.get_token_type() == "ID":
+    if state.get_token_tag() == "ID":
         output["content"]["id"] = state.get_token_val()
     else:
         throw_parse_error("illegal identifier name", state)
@@ -190,7 +191,7 @@ def parse_variable_declaration(state):
         throw_parse_error("expected a colon", state)
         return None
     state.inc_position()
-    if state.get_token_type() == "ID":
+    if state.get_token_tag() == "ID":
         output["content"]["type"] = state.get_token_val()
     else:
         throw_parse_error("expected a type", state)
@@ -209,6 +210,12 @@ def parse_variable_declaration(state):
     else:
         state.set_output(output)
         return state
+
+#to get the idea of the expression parser, see:
+#   https://en.wikipedia.org/wiki/Operator-precedence_parser#Alternative_methods
+#take a look at how the FORTRAN I compiler did it.
+#Consider the "()" as a list where we will append
+#elements to it, that's how the following 3 functions work
 
 def parse_expression(state):
     output = {
@@ -252,13 +259,13 @@ def parse_expression_brackets(state, in_brackets = False):
 def parse_expression_recursive(state, in_brackets=False):
     output = []
 
-    if is_value(state.get_token_type()):
+    if is_value(state).get_output():
         #the first operand will always on a sub-list
         #so the "*" and "/" is able to get inserted to it
         res = parse_value(state)
         if res is not None:
             state = res
-            output.append([[state.get_output()]])
+            output.append([state.get_output()])
         else:
             return None
     elif state.get_token_val() == "(":
@@ -280,10 +287,7 @@ def parse_expression_recursive(state, in_brackets=False):
                 #the expression inside brackets will always be inserted to
                 #the last element if it's sub-list on the output
                 if type(output[-1]) is list:
-                    if type(output[-1][-1]) is list:
-                        output[-1][-1].append(state.get_output())
-                    else:
-                        output[-1].append(state.get_output())
+                    output[-1].append(state.get_output())
                 else:
                     output.append(state.get_output())
             else:
@@ -291,20 +295,15 @@ def parse_expression_recursive(state, in_brackets=False):
 
         elif state.get_token_val() == "+" or\
              state.get_token_val() == "-":
-            #append the operator to the output
-            #note: we dont need to check if the parse_value
-            #returns None since this code we'll be only 
-            #executed if the current token is a "+" or a "-"
-            output[-1].append(parse_value(state).get_output())
-
+            output.append(state.get_token_val()) 
             state.inc_position()
-            if is_value(state.get_token_type()):
+            if is_value(state).get_output():
                 #an element after "+" or "-" operator will always be in a sublist
                 #so "*" and "/" could get inserted later to it
                 res = parse_value(state)
                 if res is not None:
                     state = res
-                    output[-1].append([state.get_output()])
+                    output.append([state.get_output()])
                 else:
                     return None
 
@@ -322,13 +321,13 @@ def parse_expression_recursive(state, in_brackets=False):
             #the last element, that's why we insert the numbers and operators
             #inside a sub-list earlier.
 
-            output[-1][-1].append(parse_value(state).get_output())
+            output[-1].append(state.get_token_val())
             state.inc_position()
-            if is_value(state.get_token_type()):
+            if is_value(state).get_output():
                 res = parse_value(state)
                 if res is not None:
                     state = res
-                    output[-1][-1].append(state.get_output())
+                    output[-1].append(state.get_output())
                 else:
                     return None
             elif state.get_token_val() == "(":
@@ -336,22 +335,7 @@ def parse_expression_recursive(state, in_brackets=False):
             else:
                 throw_parse_error("expected an operand", state)
                 return None
-        elif state.get_token_val() == "=":
-            output.append(parse_value(state).get_output())
-            state.inc_position()
-            if is_value(state.get_token_type()):
-                res = parse_value(state)
-                if res is not None:
-                    state = res
-                    output.append([[state.get_output()]])
-                else:
-                    return None
-            elif state.get_token_val() == "(":
-                continue
-            else:
-                throw_parse_error("expected a value", state)
-                return None
-        elif state.peek_next_token_type() != "OPERATOR":
+        elif state.peek_next_token_tag() != "OPERATOR":
             break
         else:
             state.inc_position()
@@ -362,26 +346,49 @@ def parse_expression_recursive(state, in_brackets=False):
     state.set_output(clean_tree(output))
     return state
     
-def is_value(token_type):
-    if token_type == "INT":
-        return True
-    elif token_type == "STRING":
-        return True
-    elif token_type == "CHAR":
-        return True
-    elif token_type == "BOOL":
-        return True
-    elif token_type == "ID":
-        return True
-    elif token_type == "FLOAT":
-        return True
-    return False
+def is_value(state):
+    if state.get_token_tag() == "INT"    or\
+       state.get_token_tag() == "STRING" or\
+       state.get_token_tag() == "CHAR"   or\
+       state.get_token_tag() == "BOOL"   or\
+       state.get_token_tag() == "ID"     or\
+       state.get_token_tag() == "FLOAT":
+        state.set_output(True)
+        return state
+    #check negative numbers
+    elif state.get_token_val() == "-" or\
+         state.get_token_val() == "+":
+        if state.peek_next_token_tag() == "INT"   or\
+           state.peek_next_token_tag() == "ID"    or\
+           state.peek_next_token_tag() == "BOOL"  or\
+           state.peek_next_token_tag() == "FLOAT":
+            state.set_output(True)
+            return state
+    state.set_output(False)
+    return state
 
 def parse_value(state):
-    token_type = state.get_token_type()
+    token_type = state.get_token_tag()
     value = state.get_token_val()
     if token_type == "INT":
-        state.set_output({"type": "int", "value": value})
+        state.set_output({"type": "int", "value": value, "is_negative": False})
+    #parse negative and positive numbers
+    elif value == "+" or\
+         value == "-":
+        if state.peek_next_token_tag() == "INT"   or\
+           state.peek_next_token_tag() == "ID"    or\
+           state.peek_next_token_tag() == "BOOL"  or\
+           state.peek_next_token_tag() == "FLOAT":
+            state.inc_position()
+            if value == "+":
+                is_negative = False
+            else:
+                is_negative = True
+            state.set_output({"type":state.get_token_tag(), "value": state.get_token_val(), "is_negative": is_negative})
+        else:
+            throw_parse_error("expected a number", state)
+            return None
+
     elif token_type == "STRING":
         #if it contains 2 or more character
         if len(value) > 3:
@@ -416,11 +423,9 @@ def parse_value(state):
             #no need to set output cos it's already set by
             #the parse_function_call function
         else:
-            state.set_output({"type": "identifier", "value": value})
-    elif token_type == "OPERATOR":
-        state.set_output({"type": "operator", "value": value})
+            state.set_output({"type": "identifier", "value": value, "is_negative": False})
     elif token_type == "FLOAT":
-        state.set_output({"type": "float", "value": value})
+        state.set_output({"type": "float", "value": value, "is_negative": False})
     else:
         return None
     return state
@@ -432,7 +437,7 @@ def parse_function_call(state):
         "parameters": []
     }
 
-    if state.get_token_type() == "ID":
+    if state.get_token_tag() == "ID":
         output["value"] = state.get_token_val()
     else:
         return None

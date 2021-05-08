@@ -4,9 +4,9 @@
 ya tebya lubu
 uhibbuk
 */
-22+-32 //an error
+22+--32 //an error
 /*
 menya zovut blend
 ismi blend
 */
-(error()) //oof error
+(error)) //oof error
