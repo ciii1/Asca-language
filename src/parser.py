@@ -96,21 +96,24 @@ def catch_not_match(state):
 
 def init_tokens(input):
 
-    RESERVED = 'RESERVED'
-    INT      = 'INT'
-    ID       = 'ID'
-    SIZE     = 'SIZE'
-    STRING   = 'STRING'
-    BOOL     = 'BOOL'
-    OPERATOR = 'OPERATOR'
-    CHAR     = 'CHAR'
-    FLOAT    = 'FLOAT'
+    RESERVED    = 'RESERVED'
+    INT         = 'INT'
+    ID          = 'ID'
+    SIZE        = 'SIZE'
+    STRING      = 'STRING'
+    BOOL        = 'BOOL'
+    OPERATOR    = 'OPERATOR'
+    CHAR        = 'CHAR'
+    FLOAT       = 'FLOAT'
+    ASSIGN      = 'ASSIGN'
+    RELATIONAL  = 'RELATIONAL'
     
     token_exprs = [
         (r'\n',                             None),
         (r'[ \n\t]+',                       None),
         (r'#[^\n]*',                        None),
         (r'@',                              RESERVED),
+        (r'\$',                             RESERVED),
         (r'\[',                             RESERVED),
         (r'\]',                             RESERVED),
         (r'\:',                             RESERVED),
@@ -124,7 +127,11 @@ def init_tokens(input):
         (r'true|false',                     BOOL),
         (r'\".*?\"',                        STRING),
         (r'\'.*?\'',                        CHAR),
-        (r'\=',                             OPERATOR),
+        (r'=',                              ASSIGN),
+        (r'\+=',                            ASSIGN),
+        (r'\-=',                            ASSIGN),
+        (r'\/=',                            ASSIGN),
+        (r'\*=',                            ASSIGN),
         (r'\+',                             OPERATOR),
         (r'-',                              OPERATOR),
         (r'\*',                             OPERATOR),
@@ -133,11 +140,10 @@ def init_tokens(input):
         (r'<',                              OPERATOR),
         (r'>=',                             OPERATOR),
         (r'>',                              OPERATOR),
-        (r'=',                              OPERATOR),
         (r'!=',                             OPERATOR),
-        (r'&&',                             OPERATOR),
-        (r'\|\|',                           OPERATOR),
         (r'!',                              OPERATOR),
+        (r'&&',                             RELATIONAL),
+        (r'\|\|',                           RELATIONAL),
         (r'if',                             RESERVED),
         (r'then',                           RESERVED),
         (r'else',                           RESERVED),
@@ -335,7 +341,7 @@ def parse_expression_recursive(state, in_brackets=False):
             else:
                 throw_parse_error("expected an operand", state)
                 return None
-        elif state.get_token_val() == "=":
+        elif state.get_token_tag() == "ASSIGN":
             output.append(state.get_token_val())
             state.inc_position()
             #we use parse_expression_recursive since we dont need the "header"
@@ -346,7 +352,8 @@ def parse_expression_recursive(state, in_brackets=False):
                 output.append([state.get_output()])
             else:
                 return None
-        elif state.peek_next_token_tag() != "OPERATOR":
+        elif state.peek_next_token_tag() != "OPERATOR" and\
+             state.peek_next_token_tag() != "ASSIGN":
             break
         else:
             state.inc_position()
@@ -355,12 +362,6 @@ def parse_expression_recursive(state, in_brackets=False):
     #there could be a single operand on a sublist, so we
     #need to get get those operands out of the sublist
     state.set_output(clean_tree(output))
-    return state
-
-def parse_assignment(state):
-    output = []
-
-    state.set_output(output)
     return state
 
 def is_value(state):
@@ -381,6 +382,23 @@ def is_value(state):
            state.peek_next_token_tag() == "FLOAT":
             state.set_output(True)
             return state
+    #check literal pointers
+    elif state.get_token_val() == "@":
+        state.inc_position()
+        if is_value(state).get_output():
+            state.set_output(True)
+            state.dec_position()
+            return state
+        state.dec_position()
+    #check for sign to access pointers' value
+    elif state.get_token_val() == "$":
+        state.inc_position()
+        if is_value(state).get_output():
+            state.set_output(True)
+            state.dec_position()
+            return state
+        state.dec_position()
+
     state.set_output(False)
     return state
 
@@ -404,6 +422,32 @@ def parse_value(state):
             state.set_output({"type":state.get_token_tag(), "value": state.get_token_val(), "is_negative": is_negative})
         else:
             throw_parse_error("expected a number", state)
+            return None
+    #parse literal pointers
+    elif value == "@":
+        state.inc_position()
+        if is_value(state).get_output():
+            res = parse_value(state)
+            if res is not None:
+                state = res
+                state.set_output({"type":"pointer", "value":state.get_output()})
+            else:
+                return None
+        else:
+            throw_parse_error("expected a value for literal pointer")
+            return None
+
+    elif value == "$":
+        state.inc_position()
+        if is_value(state).get_output():
+            res = parse_value(state)
+            if res is not None:
+                state = res
+                state.set_output({"type":"pointer-value", "value":state.get_output()})
+            else:
+                return None
+        else:
+            throw_parse_error("expected a value")
             return None
 
     elif token_type == "STRING":
