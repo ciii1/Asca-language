@@ -1,6 +1,17 @@
 import lexer
 import sys
 
+#TODO
+#*array access
+#-the boolean and relational operators
+#-if
+#-->elif
+#-->else
+#-for
+#-while
+#-function declaration
+#-type declaration
+
 class parser_state():
     def __init__ (self, tokens, pos=0):
         self.tokens = tokens

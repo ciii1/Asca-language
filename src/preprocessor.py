@@ -1,3 +1,4 @@
+#small preprocessor to erase comments
 def preprocess(characters):
 	output = ""
 	pos = 0
@@ -6,6 +7,7 @@ def preprocess(characters):
 			pos += 2
 			#process multiline comments
 			while characters[pos:pos+2] != "*/":
+				#replace endlines
 				if characters[pos] == "\n":
 					output += "\n"
 				pos+=1
