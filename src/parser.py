@@ -335,6 +335,17 @@ def parse_expression_recursive(state, in_brackets=False):
             else:
                 throw_parse_error("expected an operand", state)
                 return None
+        elif state.get_token_val() == "=":
+            output.append(state.get_token_val())
+            state.inc_position()
+            #we use parse_expression_recursive since we dont need the "header"
+            #of the expression
+            res = parse_expression_recursive(state)
+            if res is not None:
+                state = res
+                output.append([state.get_output()])
+            else:
+                return None
         elif state.peek_next_token_tag() != "OPERATOR":
             break
         else:
@@ -345,7 +356,13 @@ def parse_expression_recursive(state, in_brackets=False):
     #need to get get those operands out of the sublist
     state.set_output(clean_tree(output))
     return state
-    
+
+def parse_assignment(state):
+    output = []
+
+    state.set_output(output)
+    return state
+
 def is_value(state):
     if state.get_token_tag() == "INT"    or\
        state.get_token_tag() == "STRING" or\
