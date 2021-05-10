@@ -8,8 +8,8 @@ import sys
 #-if
 #-->elif
 #-->else
-#-for
 #-while
+#-for
 #-function declaration
 #-type declaration
 
