@@ -2,9 +2,8 @@ import lexer
 import sys
 
 #TODO
-#chapter 1#
+#*array access
 #-the boolean and relational operators
-#chapter 2#
 #-if
 #-->elif
 #-->else
@@ -418,9 +417,7 @@ def parse_value(state):
     token_type = state.get_token_tag()
     value = state.get_token_val()
     if token_type == "INT":
-        state.set_output({"type": "int", 
-                          "value": value, 
-                          "is_negative": False})
+        state.set_output({"type": "int", "value": value, "is_negative": False})
     #parse negative and positive numbers
     elif value == "+" or\
          value == "-":
@@ -433,9 +430,7 @@ def parse_value(state):
                 is_negative = False
             else:
                 is_negative = True
-            state.set_output({"type":state.get_token_tag(), 
-                              "value": state.get_token_val(), 
-                              "is_negative": is_negative})
+            state.set_output({"type":state.get_token_tag(), "value": state.get_token_val(), "is_negative": is_negative})
         else:
             throw_parse_error("expected a number", state)
             return None
@@ -446,12 +441,11 @@ def parse_value(state):
             res = parse_value(state)
             if res is not None:
                 state = res
-                state.set_output({"type":"pointer", 
-                                  "value":state.get_output()})
+                state.set_output({"type":"pointer", "value":state.get_output()})
             else:
                 return None
         else:
-            throw_parse_error("expected a value for literal pointer", state)
+            throw_parse_error("expected a value for literal pointer")
             return None
 
     elif value == "$":
@@ -460,12 +454,11 @@ def parse_value(state):
             res = parse_value(state)
             if res is not None:
                 state = res
-                state.set_output({"type":"pointer-value", 
-                                  "value":state.get_output()})
+                state.set_output({"type":"pointer-value", "value":state.get_output()})
             else:
                 return None
         else:
-            throw_parse_error("expected a value", state)
+            throw_parse_error("expected a value")
             return None
 
     elif token_type == "STRING":
@@ -479,8 +472,7 @@ def parse_value(state):
         #if it contains  1 character
         else:
             value = value[1]
-        state.set_output({"type": "string", 
-                          "value": value})
+        state.set_output({"type": "string", "value": value})
     elif token_type == "CHAR":
         #if it contains 2 or more character
         if len(value) > 3:
@@ -492,8 +484,7 @@ def parse_value(state):
             return None
         #if it contains  1 character
         else:
-            state.set_output({"type": "char", 
-                              "value": value[1]})
+            state.set_output({"type": "char", "value": value[1]})
     elif token_type == "BOOL":
         return {"type": "bool", "value": value}
     elif token_type == "ID":
@@ -504,28 +495,7 @@ def parse_value(state):
             #no need to set output cos it's already set by
             #the parse_function_call function
         else:
-            #check for array accessing
-            if state.peek_next_token_val() == "[":
-                state.inc_position(2)
-                res = parse_expression(state)
-                if res is not None:
-                    state = res
-                    state.set_output({"type"       : "identifier", 
-                                      "value"      : value, 
-                                      "is_negative": False, 
-                                      "array-value": res.get_output()})
-                else:
-                    return None
-                #expect for closing ']'
-                state.inc_position()
-                if state.get_token_val() != "]":
-                    throw_parse_error("expected a closing ']'", state)
-                    return None
-            else:       
-                state.set_output({"type"       : "identifier", 
-                                  "value"      : value, 
-                                  "is_negative": False, 
-                                  "array-value": None})
+            state.set_output({"type": "identifier", "value": value, "is_negative": False})
     elif token_type == "FLOAT":
         state.set_output({"type": "float", "value": value, "is_negative": False})
     else:
