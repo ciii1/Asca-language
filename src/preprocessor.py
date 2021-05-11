@@ -1,24 +1,28 @@
+import sys
+
 #small preprocessor to erase comments
 def preprocess(characters):
 	output = ""
 	pos = 0
 	while pos < len(characters):
 		if characters[pos:pos+2] == "/*":
-			pos += 2
-			output += "  "
 			#process multiline comments
 			while characters[pos:pos+2] != "*/":
 				#replace endlines
-				if characters[pos] == "\n":
-					output += "\n"
+				if pos < len(characters):
+					if characters[pos] == "\n":
+						output += "\n"
+					else:
+						output += " "
+					pos+=1
 				else:
-					output += " "
-				pos+=1
+					sys.stderr.write("ERROR: unexpected EOF while processing comments \n")
+					sys.exit(1)
 			output += "  "
 			pos+=2
 		elif characters[pos:pos+2] == "//":
-			pos+=2
-			while characters[pos] != "\n":
+			while pos < len(characters) and\
+				  characters[pos] != "\n":
 				pos+=1
 		else:
 			output+=characters[pos]

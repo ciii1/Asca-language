@@ -2,7 +2,7 @@ import lexer
 import sys
 
 #TODO
-#chapter 1#
+#chapter 1 (DONE)#
 #
 #chapter 2#
 #-if
