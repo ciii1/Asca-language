@@ -3,7 +3,7 @@ import sys
 
 #TODO
 #chapter 1#
-#-make a proper unary parser (refactor parse_value())
+#
 #chapter 2#
 #-if
 #-->elif
@@ -77,28 +77,29 @@ def parse(input):
 
     while state.get_pos() < state.get_tokens_len()-1:
         state.inc_position()
+
         res = parse_variable_declaration(state)
-        if res is not None:
-            state = res
-            output.append(state.get_output())
-            continue
-        res = parse_expression(state)
-        if res is not None:
-            state = res
-            output.append(state.get_output())
-            continue
-        else:
-            catch_not_match(state)
-            continue
+        if res is None:
+            res = parse_expression(state)
+            if res is None:
+                catch_not_match(state)
+                continue
+
+        state = res
+        output.append(state.get_output())
+        state.inc_position()
+        if state.get_token_val() != ";":
+            throw_parse_error("expected a ';'", state)
+            state.dec_position()
+        continue
+
     state.set_output(output)
     return state
 
 def catch_not_match(state):
-    if state.get_token_val() == ")":
-        throw_parse_error("unexpected ')'", state)
-    elif state.get_token_val() != None:
-        if state.get_token_tag() == "STRING":
-            throw_parse_error("unexpected token with type string",state)
+    if state.get_token_val() != None:
+        if state.get_token_tag() != "RESERVED":
+            throw_parse_error("unexpected token with type 'string'",state)
         else:
             throw_parse_error("unexpected token: %s " % state.get_token_val(), state)
     else:
@@ -118,19 +119,20 @@ def init_tokens(input):
     
     token_exprs = [
         (r'\n',                             None),
-        (r'[ \n\t]+',                       None),
+        (r'[ \t]+',                         None),
         (r'#[^\n]*',                        None),
-        (r'@',                              RESERVED),
-        (r'\$',                             RESERVED),
-        (r'!',                              RESERVED),
         (r'\[',                             RESERVED),
         (r'\]',                             RESERVED),
         (r'\:',                             RESERVED),
+        (r'\;',                             RESERVED),
         (r',',                              RESERVED),
         (r'\(',                             RESERVED),
         (r'\)',                             RESERVED),
         (r'\{',                             RESERVED),
         (r'\}',                             RESERVED),
+        (r'@',                              RESERVED),
+        (r'\$',                             RESERVED),
+        (r'!',                              RESERVED),
         (r'==',                             OPERATOR),
         (r'<=',                             OPERATOR),
         (r'<',                              OPERATOR),
@@ -226,7 +228,6 @@ def parse_variable_declaration(state):
         state.set_output(output)
         return state
 
-
 def parse_expression(state):
     output = {
         "context": "expression",
@@ -241,7 +242,7 @@ def parse_expression(state):
     else:
         return None
 
-def parse_expression_brackets(state, in_brackets = False):
+def parse_expression_brackets(state):
     output = []
     if state.get_token_val() != "(":
         return None
@@ -249,7 +250,7 @@ def parse_expression_brackets(state, in_brackets = False):
     state.inc_position()
 
     #parse the expression inside the bracket
-    res = parse_expression_recursive(state, True)
+    res = parse_expression_recursive(state)
     if res is not None:
         state = res
         output.append(res.get_output())
@@ -265,34 +266,21 @@ def parse_expression_brackets(state, in_brackets = False):
         
     return state
 
-def parse_expression_recursive(state, in_brackets=False):
+def parse_expression_recursive(state):
     output = []
 
-    if is_value(state).get_output():
-        #the first operand will always on a sub-list
-        #so the "*" and "/" is able to get inserted to it
-        res = parse_value(state)
-        if res is not None:
-            state = res
-            operand = res.get_output()
-            for i in range(0, get_highest_priority()):
-                operand = [operand]
-            output.append(operand)
-        else:
-            return None
-    elif state.get_token_val() == "(":
-        res = parse_expression_brackets(state, in_brackets)
-        if res is not None:
-            state = res
-            #append the parsed tokens inside brackets to the output
-            operand = res.get_output()
-            for i in range(0, get_highest_priority()):
-                operand = [operand]
-            output.append(operand)
-        else:
-            return None
-    else:
-        return None
+    res = parse_value(state)
+    if res is None:
+        res = parse_unary(state)
+        if res is None:
+            res = parse_expression_brackets(state)
+            if res is None:
+                return None
+    state = res
+    operand = res.get_output()
+    for i in range(0, get_highest_priority()):
+        operand = [operand]
+    output.append(operand)
 
     while True:
         if state.get_token_tag() == "OPERATOR":
@@ -303,40 +291,39 @@ def parse_expression_recursive(state, in_brackets=False):
             for i in range(0, priority):
                 index.append(-1)
             operator = state.get_token_val()
+
             state.inc_position()
             operand = None
-            if is_value(state).get_output():
-                if associativity == "left-to-right":
-                    operand = state.get_token_val()
-                    #output = [output]
-                    res = parse_value(state)
-                    if res is not None:
-                        state = res
-                        operand = res.get_output()
-                        for i in range(0, nest):
-                            operand = [operand]
-                    else:
-                        return None
-                elif associativity == "right-to-left":
-                    res = parse_expression_recursive(state)
-                    if res is not None:
-                        state = res
-                        operand = res.get_output()
-                    else:
-                        return None
-                append_to_nested(output, index, operator)
-                append_to_nested(output, index, operand)
-            #if its also not a bracket then error
-            elif state.get_token_val() != "(":
-                return None
+
+            if associativity == "left-to-right":
+                res = parse_value(state)
+                if res is None:
+                    res = parse_unary(state)
+                    if res is None:
+                        if state.get_token_val() == "(":
+                            continue
+                        else:
+                            return None
+                state = res
+                operand = res.get_output()
+                for i in range(0, nest):
+                    operand = [operand]
+            elif associativity == "right-to-left":
+                res = parse_expression_recursive(state)
+                if res is not None:
+                    state = res
+                    operand = res.get_output()
+                else:
+                    return None
+
+            append_to_nested(output, index, operator)
+            append_to_nested(output, index, operand)
 
         elif state.get_token_val() == "(":
             res = parse_expression_brackets(state)
             if res is not None:
                 state = res
                 #append it to the highest level of nested list
-                #
-                #get the highest level
                 nest = output
                 index = []
                 while True:
@@ -398,7 +385,8 @@ def get_associativity(token):
          token == ">"  or\
          token == "<=" or\
          token == "<"  or\
-         token == "==":
+         token == "==" or\
+         token == "!=":
         return "left-to-right"
     elif token == "="  or\
          token == "+=" or\
@@ -410,42 +398,28 @@ def get_associativity(token):
 def get_highest_priority():
     return 5
 
-def is_value(state):
-    if state.get_token_tag() == "INT"    or\
-       state.get_token_tag() == "STRING" or\
-       state.get_token_tag() == "CHAR"   or\
-       state.get_token_tag() == "BOOL"   or\
-       state.get_token_tag() == "ID"     or\
-       state.get_token_tag() == "FLOAT":
-        state.set_output(True)
-        return state
-    #check negative numbers
-    elif state.get_token_val() == "-" or\
-         state.get_token_val() == "+":
-        if state.peek_next_token_tag() == "INT"   or\
-           state.peek_next_token_tag() == "ID"    or\
-           state.peek_next_token_tag() == "BOOL"  or\
-           state.peek_next_token_tag() == "FLOAT":
-            state.set_output(True)
-            return state
-    #check literal pointers
-    elif state.get_token_val() == "@":
-        state.inc_position()
-        if is_value(state).get_output():
-            state.set_output(True)
-            state.dec_position()
-            return state
-        state.dec_position()
-    #check for sign to access pointers' value
-    elif state.get_token_val() == "$":
-        state.inc_position()
-        if is_value(state).get_output():
-            state.set_output(True)
-            state.dec_position()
-            return state
-        state.dec_position()
+def parse_unary(state):
+    output = []
+    if state.get_token_val() == "$" or\
+       state.get_token_val() == "@" or\
+       state.get_token_val() == "-" or\
+       state.get_token_val() == "+":
+        output.append(state.get_token_val())
+    else:
+        return None
 
-    state.set_output(False)
+    state.inc_position()
+    res = parse_value(state)
+    if res is None:
+        res = parse_unary(state)
+        if res is None:
+            res = parse_expression_brackets(state)
+            if res is None:
+                return None
+    state = res
+    output.append(res.get_output()) 
+
+    state.set_output(output)
     return state
 
 def parse_value(state):
@@ -455,52 +429,6 @@ def parse_value(state):
         state.set_output({"type": "int", 
                           "value": value, 
                           "is_negative": False})
-    #parse negative and positive numbers
-    elif value == "+" or\
-         value == "-":
-        if state.peek_next_token_tag() == "INT"   or\
-           state.peek_next_token_tag() == "ID"    or\
-           state.peek_next_token_tag() == "BOOL"  or\
-           state.peek_next_token_tag() == "FLOAT":
-            state.inc_position()
-            if value == "+":
-                is_negative = False
-            else:
-                is_negative = True
-            state.set_output({"type":state.get_token_tag(), 
-                              "value": state.get_token_val(), 
-                              "is_negative": is_negative})
-        else:
-            throw_parse_error("expected a number", state)
-            return None
-    #parse literal pointers
-    elif value == "@":
-        state.inc_position()
-        if is_value(state).get_output():
-            res = parse_value(state)
-            if res is not None:
-                state = res
-                state.set_output({"type":"pointer", 
-                                  "value":state.get_output()})
-            else:
-                return None
-        else:
-            throw_parse_error("expected a value for literal pointer", state)
-            return None
-
-    elif value == "$":
-        state.inc_position()
-        if is_value(state).get_output():
-            res = parse_value(state)
-            if res is not None:
-                state = res
-                state.set_output({"type":"pointer-value", 
-                                  "value":state.get_output()})
-            else:
-                return None
-        else:
-            throw_parse_error("expected a value", state)
-            return None
 
     elif token_type == "STRING":
         #if it contains 2 or more character
@@ -561,7 +489,9 @@ def parse_value(state):
                                   "is_negative": False, 
                                   "array-value": None})
     elif token_type == "FLOAT":
-        state.set_output({"type": "float", "value": value, "is_negative": False})
+        state.set_output({"type": "float", 
+                          "value": value, 
+                          "is_negative": False})
     else:
         return None
     return state
@@ -612,10 +542,6 @@ def parse_function_call(state):
 def throw_parse_error(msg, state):
     sys.stderr.write("Error: %s at line %s: %s \n" % (msg, state.get_token_line(), state.get_token_char()))
     state.is_error = True
-
-def throw_EOF_error(msg):
-    sys.stderr.write("Error: %s \n" % msg)
-    sys.exit(1)
 
 def clean_tree(tree):
     output = []

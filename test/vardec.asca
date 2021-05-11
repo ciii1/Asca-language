@@ -1,2 +1,2 @@
-dword hi : int
-byte hello : char = "a"
+dword hi : int;
+byte hello : char = "a";

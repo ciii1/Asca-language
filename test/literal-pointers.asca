@@ -1,7 +1,7 @@
-qword a:ptr = @"HELLO"
-print(a)
-a + 2 = 'L' //a runtime error because "HELLO" is declared on .data section since it's a string literal
-dword num:int = 3
-a = @num
-1 + $a //same as a + 3
-$a += 2
+qword a:ptr = @"HELLO";
+print(a);
+a + 2 = 'L'; //a runtime error because "HELLO" is declared on .data section since it's a string literal
+dword num:int = 3;
+a = @num;
+1 + $a; //same as a + 3
+$a += 2;
