@@ -89,8 +89,8 @@ def parse(input):
         output.append(state.get_output())
         state.inc_position()
         if state.get_token_val() != ";":
-            throw_parse_error("expected a ';'", state)
             state.dec_position()
+            throw_semicolon_error(state)
         continue
 
     state.set_output(output)
@@ -542,6 +542,10 @@ def parse_function_call(state):
 def throw_parse_error(msg, state):
     sys.stderr.write("Error: %s at line %s: %s \n" % (msg, state.get_token_line(), state.get_token_char()))
     state.is_error = True
+
+def throw_semicolon_error(state):
+    sys.stderr.write("Error: expected a semicolon at line %s: %s \n" % (state.get_token_line(), state.get_token_char()+len(state.get_token_val())))
+    state.is_error = True    
 
 def clean_tree(tree):
     output = []
