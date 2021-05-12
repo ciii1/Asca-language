@@ -1,0 +1,10 @@
+dword a:int = 0;
+while(a < 50) {
+	a += 1;
+	print(@itos(a));
+	while(a < 100) {
+		a+=10;
+		print(@itos(a));
+	}
+}
+print(@"program done");

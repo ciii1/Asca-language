@@ -1,0 +1,7 @@
+qword file:pointer;
+file = open("~/hello");
+qword str:pointer = read(file);
+print(str);
+$str + 1 = 'h';
+print(str, 22);
+

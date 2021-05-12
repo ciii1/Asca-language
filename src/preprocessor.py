@@ -16,7 +16,7 @@ def preprocess(characters):
 						output += " "
 					pos+=1
 				else:
-					sys.stderr.write("ERROR: unexpected EOF while processing comments \n")
+					sys.stderr.write("Error: unexpected EOF while processing comments \n")
 					sys.exit(1)
 			output += "  "
 			pos+=2

@@ -3,7 +3,7 @@ import sys
 
 #TODO
 #chapter 1 (DONE)#
-#
+#-----
 #chapter 2#
 #-if
 #-->elif
@@ -72,33 +72,50 @@ class parser_state():
 def parse(input):
     tokens = init_tokens(input)
     state = parser_state(tokens)
-    state.jump_position(-1)
     output = []
 
-    while state.get_pos() < state.get_tokens_len()-1:
-        state.inc_position()
-
-        res = parse_variable_declaration(state)
+    while state.get_pos() < state.get_tokens_len():
+        res = parse_basic(state)
         if res is None:
-            res = parse_expression(state)
+            res = parse_blocked(state)
             if res is None:
                 catch_not_match(state)
+                state.inc_position()
                 continue
 
         state = res
-        output.append(state.get_output())
+        output.append(res.get_output())
         state.inc_position()
-        if state.get_token_val() != ";":
-            state.dec_position()
-            throw_semicolon_error(state)
-        continue
 
     state.set_output(output)
     return state
 
+def parse_basic(state):
+    res = parse_variable_declaration(state)
+    if res is None:
+        res = parse_expression(state)
+        if res is None:
+            return None
+
+    state = res
+    state.inc_position()
+    if state.get_token_val() != ";":
+        state.dec_position()
+        throw_semicolon_error(state)
+    return state
+
+def parse_blocked(state):
+    res = parse_while(state)
+    if res is None:
+        return None
+
+    state = res
+    state.inc_position()
+    return state
+
 def catch_not_match(state):
     if state.get_token_val() != None:
-        if state.get_token_tag() != "RESERVED":
+        if state.get_token_tag() == "STRING":
             throw_parse_error("unexpected token with type 'string'",state)
         else:
             throw_parse_error("unexpected token: %s " % state.get_token_val(), state)
@@ -168,6 +185,74 @@ def init_tokens(input):
 
     return lexer.lex(input, token_exprs)
 
+def parse_while(state):
+    output = {
+        "context":"while",
+        "content": {
+            "condition": None,
+            "body": None
+        }
+    }
+    if state.get_token_val() != "while":
+        return None
+
+    state.inc_position()
+    if state.get_token_val() != "(":
+        throw_parse_error("expected a '('", state)
+
+    state.inc_position()
+    res = parse_expression(state)
+    if res is None:
+        return None
+    state = res
+    output["content"]["condition"] = res.get_output()
+
+    state.inc_position()
+    if state.get_token_val() != ")":
+        throw_parse_error("expected a ')'", state)
+
+    state.inc_position()
+    if state.get_token_val() != "{":
+        throw_parse_error("expected a '{'", state)
+
+    state.inc_position()
+    res = parse_body(state)
+    if res is None:
+        return None
+
+    state = res
+    output["body"] = res.get_output()
+
+    state.inc_position()
+    if state.get_token_val() != "}":
+        return None
+
+    state.set_output(output)
+    return state
+
+def parse_body(state):
+    output = []
+    while True:
+        res = parse_basic(state)
+        if res is None:
+            res = parse_while(state)
+            if res is None:
+                if state.get_token_val() == "}":
+                    #we're passing the end of the body, decrement and then break
+                    state.dec_position()
+                    break
+                else:
+                    catch_not_match()
+                    state.inc_position()
+                    continue
+
+        state = res
+        output.append(res.get_output())
+        state.inc_position()
+
+    state.set_output(output)
+    return state
+
 def parse_variable_declaration(state):
     output = {
         "context": "variable_declaration",
@@ -179,10 +264,10 @@ def parse_variable_declaration(state):
             "init": None,
         }
     }
-    if state.get_token_tag() == "SIZE":
-        output["content"]["size"] = state.get_token_val()
-    else:
+    if state.get_token_tag() != "SIZE":
         return None
+
+    output["content"]["size"] = state.get_token_val()
 
     state.inc_position()
     if state.get_token_val() == "[":
@@ -431,63 +516,28 @@ def parse_value(state):
                           "is_negative": False})
 
     elif token_type == "STRING":
-        #if it contains 2 or more character
-        if len(value) > 3:
-            value = value[1:-1]
-        #if it contains 0 char (specified 2 here cos the '"' is counted)
-        elif len(value) == 2:
-            throw_parse_error("a string literal cannot be empty", state)
-            return None
-        #if it contains  1 character
+        res = parse_string(state)
+        if res is not None:
+            state = res
+            #no need to set output
         else:
-            value = value[1]
-        state.set_output({"type": "string", 
-                          "value": value})
+            return None
     elif token_type == "CHAR":
-        #if it contains 2 or more character
-        if len(value) > 3:
-            throw_parse_error("a char literal can only contain 1 character", state)
-            return None
-        #if it contains 0 char
-        elif len(value) == 2:
-            throw_parse_error("a char literal cannot be empty", state)
-            return None
-        #if it contains  1 character
+        res = parse_char(state)
+        if res is not None:
+            state = res
+            #no need to set output
         else:
-            state.set_output({"type": "char", 
-                              "value": value[1]})
+            return None
     elif token_type == "BOOL":
         return {"type": "bool", "value": value}
     elif token_type == "ID":
-        #check if its a function
-        res = parse_function_call(state)
+        res = parse_identifier(state)
         if res is not None:
             state = res
-            #no need to set output cos it's already set by
-            #the parse_function_call function
+            #no need to set output
         else:
-            #check for array accessing
-            if state.peek_next_token_val() == "[":
-                state.inc_position(2)
-                res = parse_expression(state)
-                if res is not None:
-                    state = res
-                    state.set_output({"type"       : "identifier", 
-                                      "value"      : value, 
-                                      "is_negative": False, 
-                                      "array-value": res.get_output()})
-                else:
-                    return None
-                #expect for closing ']'
-                state.inc_position()
-                if state.get_token_val() != "]":
-                    throw_parse_error("expected a closing ']'", state)
-                    return None
-            else:       
-                state.set_output({"type"       : "identifier", 
-                                  "value"      : value, 
-                                  "is_negative": False, 
-                                  "array-value": None})
+            return None
     elif token_type == "FLOAT":
         state.set_output({"type": "float", 
                           "value": value, 
@@ -495,6 +545,70 @@ def parse_value(state):
     else:
         return None
     return state
+
+def parse_identifier(state):
+    value = state.get_token_val()
+    #check if its a function
+    res = parse_function_call(state)
+    if res is not None:
+        state = res
+        #no need to set output cos it's already set by
+        #the parse_function_call function
+    else:
+        #check for array accessing
+        if state.peek_next_token_val() == "[":
+            state.inc_position(2)
+            res = parse_expression(state)
+            if res is not None:
+                state = res
+                state.set_output({"type"       : "identifier", 
+                                  "value"      : value, 
+                                  "is_negative": False, 
+                                  "array-value": res.get_output()})
+            else:
+                return None
+            #expect for closing ']'
+            state.inc_position()
+            if state.get_token_val() != "]":
+                throw_parse_error("expected a closing ']'", state)
+                return None
+        else:       
+            state.set_output({"type"       : "identifier", 
+                              "value"      : value, 
+                              "is_negative": False, 
+                              "array-value": None})
+    return state
+
+def parse_string(state):
+    value = state.get_token_val()
+    #if it contains 2 or more character
+    if len(value) > 3:
+        value = value[1:-1]
+    #if it contains 0 char (specified 2 here cos the '"' is counted)
+    elif len(value) == 2:
+        throw_parse_error("a string literal cannot be empty", state)
+        return None
+    #if it contains  1 character
+    else:
+        value = value[1]
+
+    state.set_output({"type": "string", "value": value})
+    return state
+
+def parse_char(state):
+    value = state.get_token_val()
+    #if it contains 2 or more character
+    if len(value) > 3:
+        throw_parse_error("a char literal can only contain 1 character", state)
+        return None
+    #if it contains 0 char
+    elif len(value) == 2:
+        throw_parse_error("a char literal cannot be empty", state)
+        return None
+    #if it contains  1 character
+    else:
+        state.set_output({"type": "char", "value": value[1]})
+        return state
 
 def parse_function_call(state):
     output = {
