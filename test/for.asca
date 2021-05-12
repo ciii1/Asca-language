@@ -1,0 +1,17 @@
+/*
+this program demonstrates how for loops work on asca
+*/
+
+qword i:int;
+for(i=0; i < 10; i+=1;){
+	for(qword x:int = 0; x < 10; x+=1;) { //this thing work too
+		print(@"hi");
+	}
+}
+
+for(i=0; i < 10; i+=1;){
+	qword i:int = 10;
+	while(i < 10){
+		print(@"hello");
+	}
+}

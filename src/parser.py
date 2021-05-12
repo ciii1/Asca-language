@@ -2,16 +2,23 @@ import lexer
 import sys
 
 #TODO
-#chapter 1 (DONE)#
+#chapter 1: expressions(DONE)~
 #-----
-#chapter 2#
+#
+#chapter 2: control flow~
 #-if
 #-->elif
 #-->else
-#-while
-#-for
+#(*) while (need more tests)
+#(*) for (need more tests)
+#
+#chapter 3: functional~
 #-function declaration
 #-type declaration
+#
+#chapter 4: final touch~
+#-better error output
+#-better error recovery
 
 class parser_state():
     def __init__ (self, tokens, pos=0):
@@ -107,10 +114,11 @@ def parse_basic(state):
 def parse_blocked(state):
     res = parse_while(state)
     if res is None:
-        return None
+        res = parse_for(state)
+        if res is None:
+            return None
 
     state = res
-    state.inc_position()
     return state
 
 def catch_not_match(state):
@@ -168,9 +176,9 @@ def init_tokens(input):
         (r'\*',                             OPERATOR),
         (r'/',                              OPERATOR),
         (r'if',                             RESERVED),
-        (r'then',                           RESERVED),
         (r'else',                           RESERVED),
         (r'while',                          RESERVED),
+        (r'for',                            RESERVED),
         (r'\".*?\"',                        STRING),
         (r'[0-9]+\.[0-9]+',                 FLOAT),
         (r'\'.*?\'',                        CHAR),
@@ -230,19 +238,81 @@ def parse_while(state):
     state.set_output(output)
     return state
 
+def parse_for(state):
+    output = {
+        "context":"for",
+        "content": {
+            "condition": None,
+            "setup": None,
+            "increment": None,
+            "body": None
+        }
+    }
+    if state.get_token_val() != "for":
+        return None
+
+    state.inc_position()
+    if state.get_token_val() != "(":
+        throw_parse_error("expected a '('", state)
+
+    state.inc_position()
+    res = parse_basic(state)
+    if res is None:
+        return None
+    state = res
+    output["content"]["setup"] = res.get_output()
+    
+    state.inc_position()
+    res = parse_basic(state)
+    if res is None:
+        return None
+    state = res
+    output["content"]["condition"] = res.get_output()
+
+    state.inc_position()
+    res = parse_basic(state)
+    if res is None:
+        return None
+    state = res
+    output["content"]["increment"] = res.get_output()
+
+    state.inc_position()
+    if state.get_token_val() != ")":
+        return None
+
+    state.inc_position()
+    if state.get_token_val() != "{":
+        return None
+
+    state.inc_position()
+    res = parse_body(state)
+    if res is None:
+        return None
+
+    state = res
+    output["body"] = res.get_output()
+
+    state.inc_position()
+    if state.get_token_val() != "}":
+        return None
+
+    state.set_output(output)
+    return state
+
 def parse_body(state):
     output = []
-    while True:
+    while state.get_token_val() is not None:
+        if state.get_token_val() == "}":
+            #we're passing the end of the body, decrement and then break
+            state.dec_position()
+            break
         res = parse_basic(state)
         if res is None:
             res = parse_while(state)
             if res is None:
-                if state.get_token_val() == "}":
-                    #we're passing the end of the body, decrement and then break
-                    state.dec_position()
-                    break
-                else:
-                    catch_not_match()
+                res = parse_for(state)
+                if res is None:
+                    catch_not_match(state)
                     state.inc_position()
                     continue
 
