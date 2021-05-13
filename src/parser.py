@@ -5,12 +5,8 @@ import sys
 #chapter 1: expressions(DONE)~
 #-----
 #
-#chapter 2: control flow~
-#-if
-#-->elif
-#-->else
-#(*) while (need more tests)
-#(*) for (need more tests)
+#chapter 2: control flow(DONE)~
+#------
 #
 #chapter 3: functional~
 #-function declaration
@@ -116,7 +112,9 @@ def parse_blocked(state):
     if res is None:
         res = parse_for(state)
         if res is None:
-            return None
+            res = parse_if(state)
+            if res is None:
+                return None
 
     state = res
     return state
@@ -176,6 +174,8 @@ def init_tokens(input):
         (r'\*',                             OPERATOR),
         (r'/',                              OPERATOR),
         (r'if',                             RESERVED),
+        (r'elif',                           RESERVED),
+        (r'else',                           RESERVED),
         (r'else',                           RESERVED),
         (r'while',                          RESERVED),
         (r'for',                            RESERVED),
@@ -206,7 +206,7 @@ def parse_while(state):
 
     state.inc_position()
     if state.get_token_val() != "(":
-        throw_parse_error("expected a '('", state)
+        return None
 
     state.inc_position()
     res = parse_expression(state)
@@ -217,11 +217,11 @@ def parse_while(state):
 
     state.inc_position()
     if state.get_token_val() != ")":
-        throw_parse_error("expected a ')'", state)
+        return None
 
     state.inc_position()
     if state.get_token_val() != "{":
-        throw_parse_error("expected a '{'", state)
+        return None
 
     state.inc_position()
     res = parse_body(state)
@@ -229,7 +229,7 @@ def parse_while(state):
         return None
 
     state = res
-    output["body"] = res.get_output()
+    output["content"]["body"] = res.get_output()
 
     state.inc_position()
     if state.get_token_val() != "}":
@@ -299,6 +299,147 @@ def parse_for(state):
     state.set_output(output)
     return state
 
+def parse_if(state):
+    output = {
+        "context":"while",
+        "content": {
+            "condition": None,
+            "body": None,
+            "else":None,
+            "elif":[]
+        }
+    }
+    if state.get_token_val() != "if":
+        return None
+
+    state.inc_position()
+    if state.get_token_val() != "(":
+        return None
+
+    state.inc_position()
+    res = parse_expression(state)
+    if res is None:
+        return None
+    state = res
+    output["content"]["condition"] = res.get_output()
+
+    state.inc_position()
+    if state.get_token_val() != ")":
+        throw_parse_error("expected a ')'", state)
+
+    state.inc_position()
+    if state.get_token_val() != "{":
+        throw_parse_error("expected a '{'", state)
+
+    state.inc_position()
+    res = parse_body(state)
+    if res is None:
+        return None
+    state = res
+    output["content"]["body"] = res.get_output()
+
+    state.inc_position()
+    if state.get_token_val() != "}":
+        return None
+
+    state.inc_position()
+    res = parse_elif(state)
+    if res is not None:
+        state = res
+        output["content"]["elif"] = res.get_output()
+        state.inc_position()
+
+    res = parse_else(state)
+    if res is None:
+        state.dec_position()
+        state.set_output(output)
+        return state
+
+    state = res
+    output["content"]["else"] = res.get_output()
+    state.set_output(output)
+    return state
+
+def parse_elif(state):
+    output = []
+    small_output = {
+        "context" : "elif",
+        "content" : {
+            "conditon" : None,
+            "body": None
+        }
+    }
+    if state.get_token_val() != "elif":
+        return None
+
+    while state.get_token_val() == "elif":
+        state.inc_position()
+        if state.get_token_val() != "(":
+            return None
+
+        state.inc_position()
+        res = parse_expression(state)
+        if res is None:
+            return None
+        state = res
+        small_output["content"]["condition"] = res.get_output()
+
+        state.inc_position()
+        if state.get_token_val() != ")":
+            return None
+
+        state.inc_position()
+        if state.get_token_val() != "{":
+            return None
+
+        state.inc_position()
+        res = parse_body(state)
+        if res is None:
+            return None
+
+        state = res
+        small_output["content"]["body"] = res.get_output()
+
+        state.inc_position()
+        if state.get_token_val() != "}":
+            return None
+
+        output.append(small_output)
+        state.inc_position()
+
+    state.dec_position()
+    state.set_output(output)
+    return state
+
+def parse_else(state):
+    output = {
+        "context" : "else",
+        "content" : {
+            "body": None
+        }
+    }
+
+    if state.get_token_val() != "else":
+        return None
+
+    state.inc_position()
+    if state.get_token_val() != "{":
+        return None
+
+    state.inc_position()
+    res = parse_body(state)
+    if res is None:
+        return None
+    state = res
+    output["content"]["body"] = res.get_output()
+
+    state.inc_position()
+    if state.get_token_val() != "}":
+        return None
+
+    state.set_output(output)
+    return state
+
 def parse_body(state):
     output = []
     while state.get_token_val() is not None:
@@ -312,9 +453,12 @@ def parse_body(state):
             if res is None:
                 res = parse_for(state)
                 if res is None:
-                    catch_not_match(state)
-                    state.inc_position()
-                    continue
+                    res = parse_if(state)
+                    if res is None:
+                        return None
+                        catch_not_match(state)
+                        state.inc_position()
+                        continue
 
         state = res
         output.append(res.get_output())
@@ -349,24 +493,21 @@ def parse_variable_declaration(state):
         output["content"]["array-size"] = state.get_token_val()
         state.inc_position()
         if state.get_token_val() != "]":
-            throw_parse_error("expected a ']'", state)
+            return None
         state.inc_position()
 
-    if state.get_token_tag() == "ID":
-        output["content"]["id"] = state.get_token_val()
-    else:
-        throw_parse_error("illegal identifier name", state)
+    if state.get_token_tag() != "ID":
         return None
+    output["content"]["id"] = state.get_token_val()
 
     state.inc_position()
     if state.get_token_val() != ":":
-        throw_parse_error("expected a colon", state)
         return None
+
     state.inc_position()
     if state.get_token_tag() == "ID":
         output["content"]["type"] = state.get_token_val()
     else:
-        throw_parse_error("expected a type", state)
         return None
     if state.peek_next_token_val() == '=':
         state.inc_position(2)
@@ -377,7 +518,6 @@ def parse_variable_declaration(state):
             state.set_output(output)
             return state
         else:
-            throw_parse_error("expected a value", state)
             return None
     else:
         state.set_output(output)
