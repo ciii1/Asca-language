@@ -1,0 +1,24 @@
+func add(qword a:int, qword b:int) {
+	qword res:int = a+b;
+	return con_int_str(@"a+b =", res);
+}
+
+/*
+this function equals to msg * loop in python
+*/
+func loop_str(word msg:ptr, word loop:int) {
+	qword out_ptr:ptr = alloc(0); //place the out_ptr to the program end
+	qword buff_ptr:ptr;
+	
+	for(word x:int = 0; x < loop; x+=1;){
+		for(word i:int = 0; i < str_len(msg); i+=1;){
+			buff_ptr = alloc(1); //allocate 1 byte
+			$buff_ptr = msg[i];
+		}
+	}
+	return out_ptr;
+
+}
+print(add(10, 2));
+print(add(30, 2));
+print(loop_str(@"Hello", 10));

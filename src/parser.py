@@ -98,8 +98,13 @@ def parse_basic(state):
     if res is None:
         res = parse_expression(state)
         if res is None:
-            return None
-
+            res = parse_return(state)
+            if res is None:
+                res = parse_break(state)
+                if res is None:
+                    res = parse_continue(state)
+                    if res is None:
+                        return None
     state = res
     state.inc_position()
     if state.get_token_val() != ";":
@@ -114,7 +119,9 @@ def parse_blocked(state):
         if res is None:
             res = parse_if(state)
             if res is None:
-                return None
+                res = parse_function_declaration(state)
+                if res is None:
+                    return None
 
     state = res
     return state
@@ -173,12 +180,16 @@ def init_tokens(input):
         (r'-',                              OPERATOR),
         (r'\*',                             OPERATOR),
         (r'/',                              OPERATOR),
+        (r'func',                           RESERVED),
         (r'if',                             RESERVED),
         (r'elif',                           RESERVED),
         (r'else',                           RESERVED),
         (r'else',                           RESERVED),
         (r'while',                          RESERVED),
         (r'for',                            RESERVED),
+        (r'break',                          RESERVED),
+        (r'continue',                       RESERVED),
+        (r'return',                         RESERVED),
         (r'\".*?\"',                        STRING),
         (r'[0-9]+\.[0-9]+',                 FLOAT),
         (r'\'.*?\'',                        CHAR),
@@ -192,6 +203,62 @@ def init_tokens(input):
     ]
 
     return lexer.lex(input, token_exprs)
+
+def parse_function_declaration(state):
+    output = {
+        "context": "function_declaration",
+        "content": {
+            "identifier": None,
+            "parameters": [],
+            "body": None
+        }
+    }
+
+    if state.get_token_val() != "func":
+        return None
+
+    state.inc_position()
+    if state.get_token_tag() != "ID":
+        return None
+    output["content"]["identifier"] = state.get_token_val()
+
+    state.inc_position()
+    if state.get_token_val() != "(":
+        return None
+
+    state.inc_position()
+    while True:
+        if state.get_token_val() == ")":
+            break
+        res = parse_variable_declaration(state)
+        if res is None:
+            return None
+        state = res
+        output["content"]["parameters"].append(state.get_output())
+        state.inc_position()
+        if state.get_token_val() == ",":
+            state.inc_position()
+            if state.get_token_val() == ")":
+                return None
+
+    state.inc_position()
+    if state.get_token_val() != "{":
+        return None
+
+    state.inc_position()
+    res = parse_body(state)
+    if res is None:
+        return None
+
+    state = res
+    output["content"]["body"] = res.get_output()
+
+    state.inc_position()
+    if state.get_token_val() != "}":
+        return None
+
+    state.set_output(output)
+    return state
 
 def parse_while(state):
     output = {
@@ -757,37 +824,38 @@ def parse_value(state):
     return state
 
 def parse_identifier(state):
-    value = state.get_token_val()
-    #check if its a function
-    res = parse_function_call(state)
-    if res is not None:
+    output = {
+            "type": "identifier",
+            "value":None,
+            "array-value": None,
+        }
+    output["value"] = state.get_token_val()
+    if state.peek_next_token_val() == "(":
+        res = parse_function_call(state)
+        if res is None:
+            return None
         state = res
-        #no need to set output cos it's already set by
-        #the parse_function_call function
+        return state
+    elif state.peek_next_token_val() == "[":
+        state.inc_position(2)
+        res = parse_expression(state)
+        if res is not None:
+            state = res
+            output["array-value"] = res.get_output()
+            state.set_output(output)
+        else:
+            return None
+        #expect for closing ']'
+        state.inc_position()
+        if state.get_token_val() != "]":
+            throw_parse_error("expected a closing ']'", state)
+            return None
+
+        state.set_output(output)
+        return state
     else:
-        #check for array accessing
-        if state.peek_next_token_val() == "[":
-            state.inc_position(2)
-            res = parse_expression(state)
-            if res is not None:
-                state = res
-                state.set_output({"type"       : "identifier", 
-                                  "value"      : value, 
-                                  "is_negative": False, 
-                                  "array-value": res.get_output()})
-            else:
-                return None
-            #expect for closing ']'
-            state.inc_position()
-            if state.get_token_val() != "]":
-                throw_parse_error("expected a closing ']'", state)
-                return None
-        else:       
-            state.set_output({"type"       : "identifier", 
-                              "value"      : value, 
-                              "is_negative": False, 
-                              "array-value": None})
-    return state
+        state.set_output(output)
+        return state
 
 def parse_string(state):
     value = state.get_token_val()
@@ -832,34 +900,66 @@ def parse_function_call(state):
     else:
         return None
 
-    if state.peek_next_token_val() != "(":
+    state.inc_position()
+    if state.get_token_val() != "(":
+        state.dec_position()
         return None
 
-    state.inc_position(2)
-    if state.get_token_val() == ")":
-        output['parameters'] = None
-    else:
-        while True:
-            #parse the expresion inside, the second argument says to the
-            #expression parser that it's parsing inside brackets
-            res = parse_expression(state)
-            if res is not None:
-                state = res
-                output['parameters'].append(state.get_output())
-                state.inc_position()
-                if state.get_token_val() == ",":
-                    state.inc_position()
-                elif state.get_token_val() == ")":
-                    break
-                else:
-                    throw_parse_error("expected a ')'", state)
-                    return None
-            else:
-                #if it returns none, it means that there's an
-                #invalid expression inside the brackets
-                catch_not_match(state)
+    state.inc_position()
+    while True:
+        if state.get_token_val() == ")":
+            break
+        res = parse_expression(state)
+        if res is None:
+            return None
+        state = res
+        output["parameters"].append(state.get_output())
+        state.inc_position()
+        if state.get_token_val() == ",":
+            state.inc_position()
+            if state.get_token_val() == ")":
                 return None
 
+    state.set_output(output)
+    return state
+
+def parse_return(state):
+    output = {
+        "context" : "return",
+        "content" : {
+            "value": None
+        }
+    }
+    if state.get_token_val() != "return":
+        return None
+
+    state.inc_position()
+    res = parse_expression(state)
+    if res is None:
+        return None
+
+    state = res
+    output["content"]["value"] = res.get_output()
+    state.set_output(output)
+    return state
+
+def parse_break(state):
+    output = {
+        "context": "break"
+    }
+    if state.get_token_val() != "break":
+        return None
+
+    state.set_output(output)
+    return state
+
+def parse_continue(state):
+    output = {
+        "context": "continue"
+    }
+    if state.get_token_val() != "continue":
+        return None
+        
     state.set_output(output)
     return state
 
