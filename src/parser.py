@@ -9,8 +9,8 @@ import sys
 #------
 #
 #chapter 3: functional~
-#-function declaration
 #-type declaration
+#-struct declaration
 #
 #chapter 4: final touch~
 #-better error output
@@ -104,7 +104,9 @@ def parse_basic(state):
                 if res is None:
                     res = parse_continue(state)
                     if res is None:
-                        return None
+                        res = parse_type_declaration(state)
+                        if res is None:
+                            return None
     state = res
     state.inc_position()
     if state.get_token_val() != ";":
@@ -124,6 +126,52 @@ def parse_blocked(state):
                     return None
 
     state = res
+    return state
+
+def parse_body_basic(state):
+    res = parse_variable_declaration(state)
+    if res is None:
+        res = parse_expression(state)
+        if res is None:
+            res = parse_return(state)
+            if res is None:
+                res = parse_break(state)
+                if res is None:
+                    res = parse_continue(state)
+                    if res is None:
+                        return None
+    state = res
+    state.inc_position()
+    if state.get_token_val() != ";":
+        state.dec_position()
+        throw_semicolon_error(state)
+    return state    
+
+def parse_body(state):
+    output = []
+    while state.get_token_val() is not None:
+        if state.get_token_val() == "}":
+            #we're passing the end of the body, decrement and then break
+            state.dec_position()
+            break
+        res = parse_body_basic(state)
+        if res is None:
+            res = parse_while(state)
+            if res is None:
+                res = parse_for(state)
+                if res is None:
+                    res = parse_if(state)
+                    if res is None:
+                        return None
+                        catch_not_match(state)
+                        state.inc_position()
+                        continue
+
+        state = res
+        output.append(res.get_output())
+        state.inc_position()
+
+    state.set_output(output)
     return state
 
 def catch_not_match(state):
@@ -180,6 +228,7 @@ def init_tokens(input):
         (r'-',                              OPERATOR),
         (r'\*',                             OPERATOR),
         (r'/',                              OPERATOR),
+        (r'type',                           RESERVED),
         (r'func',                           RESERVED),
         (r'if',                             RESERVED),
         (r'elif',                           RESERVED),
@@ -203,6 +252,37 @@ def init_tokens(input):
     ]
 
     return lexer.lex(input, token_exprs)
+
+def parse_type_declaration(state):
+    output = {
+        "context":"type_declaration",
+        "content":{
+            "identifier":None,
+            "min_size": None,
+        }
+    }
+    if state.get_token_val() != "type":
+        return None
+
+    state.inc_position()
+    if state.get_token_tag() != "ID":
+        return None
+    output["content"]["identifier"] = state.get_token_val()
+
+    state.inc_position()
+    if state.get_token_val() != ":":
+        state.dec_position()
+        output["content"]["min_size"] = "byte";
+        state.set_output(output)
+        return state        
+
+    state.inc_position()
+    if state.get_token_tag() != "SIZE":
+        return None
+    output["content"]["min_size"] = state.get_token_val()
+
+    state.set_output(output)
+    return state
 
 def parse_function_declaration(state):
     output = {
@@ -507,33 +587,6 @@ def parse_else(state):
     state.set_output(output)
     return state
 
-def parse_body(state):
-    output = []
-    while state.get_token_val() is not None:
-        if state.get_token_val() == "}":
-            #we're passing the end of the body, decrement and then break
-            state.dec_position()
-            break
-        res = parse_basic(state)
-        if res is None:
-            res = parse_while(state)
-            if res is None:
-                res = parse_for(state)
-                if res is None:
-                    res = parse_if(state)
-                    if res is None:
-                        return None
-                        catch_not_match(state)
-                        state.inc_position()
-                        continue
-
-        state = res
-        output.append(res.get_output())
-        state.inc_position()
-
-    state.set_output(output)
-    return state
-
 def parse_variable_declaration(state):
     output = {
         "context": "variable_declaration",
@@ -788,10 +841,7 @@ def parse_value(state):
     token_type = state.get_token_tag()
     value = state.get_token_val()
     if token_type == "INT":
-        state.set_output({"type": "int", 
-                          "value": value, 
-                          "is_negative": False})
-
+        state.set_output({"type": "int", "value": value})
     elif token_type == "STRING":
         res = parse_string(state)
         if res is not None:
@@ -816,9 +866,7 @@ def parse_value(state):
         else:
             return None
     elif token_type == "FLOAT":
-        state.set_output({"type": "float", 
-                          "value": value, 
-                          "is_negative": False})
+        state.set_output({"type": "float", "value": value})
     else:
         return None
     return state
