@@ -341,7 +341,8 @@ def parse_function_declaration(state):
         "content": {
             "id": None,
             "parameters": [],
-            "body": None
+            "body": None,
+            "type": None
         }
     }
 
@@ -371,6 +372,15 @@ def parse_function_declaration(state):
             state.inc_position()
             if state.get_token_val() == ")":
                 return None
+
+    state.inc_position()
+    if state.get_token_val() != ":":
+        return None
+
+    state.inc_position()
+    if state.get_token_tag() != "ID":
+        return None
+    output["content"]["type"] = state.get_token_val()
 
     state.inc_position()
     if state.get_token_val() != "{":
@@ -499,7 +509,7 @@ def parse_for(state):
 
 def parse_if(state):
     output = {
-        "context":"while",
+        "context":"if",
         "content": {
             "condition": None,
             "body": None,
@@ -563,10 +573,11 @@ def parse_elif(state):
     small_output = {
         "context" : "elif",
         "content" : {
-            "conditon" : None,
+            "condition" : None,
             "body": None
         }
     }
+
     if state.get_token_val() != "elif":
         return None
 
