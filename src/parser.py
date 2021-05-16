@@ -8,9 +8,8 @@ import sys
 #chapter 2: control flow(DONE)~
 #------
 #
-#chapter 3: functional~
-#-type declaration
-#-struct declaration
+#chapter 3: functional(DONE)~
+#-------
 #
 #chapter 4: final touch~
 #-better error output
@@ -123,7 +122,9 @@ def parse_blocked(state):
             if res is None:
                 res = parse_function_declaration(state)
                 if res is None:
-                    return None
+                    res = parse_struct_declaration(state)
+                    if res is None:
+                        return None
 
     state = res
     return state
@@ -163,9 +164,9 @@ def parse_body(state):
                     res = parse_if(state)
                     if res is None:
                         return None
-                        catch_not_match(state)
-                        state.inc_position()
-                        continue
+                        #catch_not_match(state)
+                        #state.inc_position()
+                        #continue
 
         state = res
         output.append(res.get_output())
@@ -228,6 +229,7 @@ def init_tokens(input):
         (r'-',                              OPERATOR),
         (r'\*',                             OPERATOR),
         (r'/',                              OPERATOR),
+        (r'struct',                         RESERVED),
         (r'type',                           RESERVED),
         (r'func',                           RESERVED),
         (r'if',                             RESERVED),
@@ -243,6 +245,7 @@ def init_tokens(input):
         (r'[0-9]+\.[0-9]+',                 FLOAT),
         (r'\'.*?\'',                        CHAR),
         (r'true|false',                     BOOL),
+        (r'auto',                           SIZE),
         (r'qword',                          SIZE),
         (r'dword',                          SIZE),
         (r'word',                           SIZE),
@@ -257,7 +260,7 @@ def parse_type_declaration(state):
     output = {
         "context":"type_declaration",
         "content":{
-            "identifier":None,
+            "id":None,
             "min_size": None,
         }
     }
@@ -267,7 +270,7 @@ def parse_type_declaration(state):
     state.inc_position()
     if state.get_token_tag() != "ID":
         return None
-    output["content"]["identifier"] = state.get_token_val()
+    output["content"]["id"] = state.get_token_val()
 
     state.inc_position()
     if state.get_token_val() != ":":
@@ -284,11 +287,59 @@ def parse_type_declaration(state):
     state.set_output(output)
     return state
 
+def parse_struct_declaration(state):
+    output = {
+        "context": "struct_declaration",
+        "content": {
+            "id": None,
+            "attributes": []
+        }
+    }
+    if state.get_token_val() != "struct":
+        return None
+
+    state.inc_position()
+    if state.get_token_tag() != "ID":
+        return None
+    output["content"]["id"] = state.get_token_val()
+
+    state.inc_position()
+    if state.get_token_val() != "{":
+        return None
+
+    state.inc_position()
+    while state.get_token_val() is not None:
+        if state.get_token_val() == "}":
+            #we're passing the end of the body, decrement and then break
+            state.dec_position()
+            break
+        res = parse_variable_declaration(state)
+        if res is None:
+            return None
+            #catch_not_match(state)
+            #state.inc_position()
+            #continue
+
+        state = res
+        state.inc_position()
+        if state.get_token_val() != ";":
+            state.dec_position()
+            throw_semicolon_error(state)
+        output["content"]["attributes"].append(res.get_output())
+        state.inc_position()
+
+    state.inc_position()
+    if state.get_token_val() != "}":
+        return None
+
+    state.set_output(output)
+    return state
+
 def parse_function_declaration(state):
     output = {
         "context": "function_declaration",
         "content": {
-            "identifier": None,
+            "id": None,
             "parameters": [],
             "body": None
         }
@@ -300,7 +351,7 @@ def parse_function_declaration(state):
     state.inc_position()
     if state.get_token_tag() != "ID":
         return None
-    output["content"]["identifier"] = state.get_token_val()
+    output["content"]["id"] = state.get_token_val()
 
     state.inc_position()
     if state.get_token_val() != "(":
