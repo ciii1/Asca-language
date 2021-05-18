@@ -11,7 +11,11 @@ import sys
 #chapter 3: functional(DONE)~
 #-------
 #
-#chapter 4: final touch~
+#chapter 4: semantic ~
+#-redeclared variable
+#-undeclared variable
+#
+#chapter 5: final touch~
 #-better error output
 #-better error recovery
 
@@ -573,11 +577,10 @@ def parse_elif(state):
     small_output = {
         "context" : "elif",
         "content" : {
-            "condition" : None,
+            "conditon" : None,
             "body": None
         }
     }
-
     if state.get_token_val() != "elif":
         return None
 

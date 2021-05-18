@@ -1,6 +1,7 @@
 type move;
 type person;
-func get_move(qword x:move) {
+
+func get_move(qword x:move) : ptr {
 	if(x == 0) {
 		return @"idle";
 	} elif (x == 1) {
@@ -11,10 +12,10 @@ func get_move(qword x:move) {
 		return @"run";
 	} else {
 		return @"unknown";
-	}
+	}	
 }
 
-func get_person(qword x:person) {
+func get_person(qword x:person) : ptr {
 	if(x == 0) {
 		return @"me";
 	} elif (x == 1) {
@@ -24,10 +25,11 @@ func get_person(qword x:person) {
 	} else {
 		return @"unknown";
 	}
-}
 
+}
 byte y:person = 1;
 byte x:move = 2;
 
 print(get_person(y));
 print(get_move(x));
+
