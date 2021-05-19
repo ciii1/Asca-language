@@ -262,7 +262,6 @@ def init_tokens(input):
         (r'[0-9]+\.[0-9]+',                 FLOAT),
         (r'\'.*?\'',                        CHAR),
         (r'true|false',                     BOOL),
-        (r'auto',                           SIZE),
         (r'qword',                          SIZE),
         (r'dword',                          SIZE),
         (r'word',                           SIZE),
