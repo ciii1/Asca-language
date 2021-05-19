@@ -1,9 +1,0 @@
-struct animal {
-	qword name:ptr;
-	qword sound:ptr;
-	qword color:ptr;
-}
-
-auto cat:animal = animal(@"cat", @"meow", @"white");
-auto dog:animal = animal(@"dog", @"woof", @"brown");
-
