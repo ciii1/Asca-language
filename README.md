@@ -12,21 +12,6 @@ type color: dword;
 dword a:color = 1;
 byte b:color = 3; //error: trying to declare a variable below minimum size of type 'color'
 ```
-and ```struct``` keyword
-```
-struct color {
-  byte red:int;
-  byte green:int;
-  byte blue:int;
-}
-
-auto red: color = color(100, 0, 0);
-auto green: color = color(0, 255, 0);
-qword green: color = color(20, 2, 3); //error: cant manually size a struct
-
-auto blank: color = color(green=12, blue=30);
-blank.red = 30;
-```
 It is compiled to nasm assembly
 
 
