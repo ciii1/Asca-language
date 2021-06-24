@@ -11,14 +11,7 @@ import sys
 #chapter 3: functional(DONE)~
 #-------
 #
-#chapter 4: semantic ~
-#-redeclared variable
-#-undeclared variable
-#-mismatch operand type
-#-mismatch return type
-#-mismatch variable assignition (on declaration)
-#
-#chapter 5: final touch~
+#chapter 4: final touch~
 #-better error output
 #-better error recovery
 
@@ -687,158 +680,98 @@ def parse_expression(state):
     else:
         return None
 
-def parse_expression_brackets(state):
-    output = []
-    if state.get_token_val() != "(":
-        return None
-
-    state.inc_position()
-
-    #parse the expression inside the bracket
-    res = parse_expression_recursive(state)
-    if res is not None:
-        state = res
-        output.append(res.get_output())
-        state.set_output(output)
-    else:
-        return None
-
-    state.inc_position()
-
-    #expect a closing bracket
-    if state.get_token_val() != ")":
-        return None
-        
-    return state
-
-def parse_expression_recursive(state):
-    output = []
-
-    res = parse_value(state)
-    if res is None:
-        res = parse_unary(state)
+#use pratt parsing because it's cool
+def parse_expression_recursive(state, rbp = 0):
+    if state.get_token_val() == "(":
+        state.inc_position()
+        res = parse_expression_recursive(state)
         if res is None:
-            res = parse_expression_brackets(state)
-            if res is None:
-                return None
+            return None
+        res.inc_position()
+        if res.get_token_val() != ")":
+            return None
+    else:
+        res = parse_value(state)
+    if res is None:
+        return None
     state = res
-    operand = res.get_output()
-    for i in range(0, get_highest_priority()):
-        operand = [operand]
-    output.append(operand)
+    left = res.get_output()
 
-    while True:
-        if state.get_token_tag() == "OPERATOR":
-            priority = get_priority(state.get_token_val())
-            associativity = get_associativity(state.get_token_val())
-            nest = get_highest_priority() - priority
-            index = []
-            for i in range(0, priority):
-                index.append(-1)
-            operator = state.get_token_val()
+    operator = state.peek_next_token_val()
+    if get_priority(operator) is None:
+        state.set_output(left)
+        return state
 
-            state.inc_position()
-            operand = None
+    while get_priority(operator) > rbp:
+        state.inc_position()
+        operator = state.get_token_val()
+        if get_priority(operator) is None:
+            state.dec_position()
+            state.set_output(left)
+            return state
 
-            if associativity == "left-to-right":
-                res = parse_value(state)
-                if res is None:
-                    res = parse_unary(state)
-                    if res is None:
-                        if state.get_token_val() == "(":
-                            continue
-                        else:
-                            return None
-                state = res
-                operand = res.get_output()
-                for i in range(0, nest):
-                    operand = [operand]
-            elif associativity == "right-to-left":
-                res = parse_expression_recursive(state)
-                if res is not None:
-                    state = res
-                    operand = res.get_output()
-                else:
-                    return None
-
-            append_to_nested(output, index, operator)
-            append_to_nested(output, index, operand)
-
-        elif state.get_token_val() == "(":
-            res = parse_expression_brackets(state)
-            if res is not None:
-                state = res
-                #append it to the highest level of nested list
-                nest = output
-                index = []
-                while True:
-                    if type(nest[-1]) is list:
-                        nest = nest[-1]
-                        index.append(-1)
-                    else:
-                        break
-
-                append_to_nested(output, index, res.get_output())
-            else:
-                return None
-        elif state.peek_next_token_tag() != "OPERATOR":
-            break
+        state.inc_position()
+        if get_associativity(operator) == "left":
+            res = parse_expression_recursive(state, get_priority(operator))
         else:
-            state.inc_position()
+            res = parse_expression_recursive(state, get_priority(operator) - 1)
+        if res is None:
+            return None
+        state = res
+        left = [left, operator, res.get_output()]
 
-    state.set_output(clean_tree(output))
-    #state.set_output(output)
+    state.set_output(left)
     return state
 
 def get_priority(token):
     if token == "=" or\
-       token == "+=" or\
-       token == "-=" or\
-       token == "*=" or\
-       token == "/=":
-        return 0
+         token == "+=" or\
+         token == "-=" or\
+         token == "*=" or\
+         token == "/=":
+        return 10
     elif token == "||":
-        return 1
+        return 20
     elif token == "&&":
-        return 2
+        return 30
     elif token == ">=" or\
          token == ">"  or\
          token == "<=" or\
          token == "<"  or\
          token == "==" or\
          token == "!=":
-        return 3
+        return 40
     elif token == "+" or\
          token == "-":
-        return 4
+        return 50
     elif token == "*" or\
          token == "/":
-        return 5
+        return 60
 
 def get_associativity(token):
     if token == "||":
-        return "left-to-right"
+        return "left"
     elif token == "&&":
-        return "left-to-right"
+        return "left"
     elif token == "+" or\
          token == "-":
-        return "left-to-right"
+        return "left"
     elif token == "*" or\
          token == "/":
-        return "left-to-right"
+        return "left"
     elif token == ">=" or\
          token == ">"  or\
          token == "<=" or\
          token == "<"  or\
          token == "==" or\
          token == "!=":
-        return "left-to-right"
+        return "left"
     elif token == "="  or\
          token == "+=" or\
          token == "-=" or\
          token == "*=" or\
          token == "/=":
-        return "right-to-left"
+        return "right"
 
 def get_highest_priority():
     return 5
@@ -1048,31 +981,3 @@ def throw_parse_error(msg, state):
 def throw_semicolon_error(state):
     sys.stderr.write("Error: expected a semicolon at line %s: %s \n" % (state.get_token_line(), state.get_token_char()+len(state.get_token_val())))
     state.is_error = True    
-
-def clean_tree(tree):
-    output = []
-    for i in tree:
-        if type(i) is list:
-            x = i
-            while type(x) is list:
-                if len(x) == 1:
-                    x = x[0]
-                else:
-                    x = clean_tree(x)
-                    break
-            output.append(x)
-        else:
-            output.append(i)
-    return output
-
-def append_to_nested(initializer, iterable, val):
-    function = lambda s, i: s[i]
-    it = iter(iterable)
-    if initializer is None:
-        value = next(it)
-    else:
-        value = initializer
-    for element in it:
-        value = function(value, element)
-    value.append(val)
-    return value
