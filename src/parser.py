@@ -773,9 +773,6 @@ def get_associativity(token):
          token == "/=":
         return "right"
 
-def get_highest_priority():
-    return 5
-
 def parse_unary(state):
     output = []
     if state.get_token_val() == "$" or\
