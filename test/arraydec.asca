@@ -1,6 +1,6 @@
 //qword[3 a :int = 3
 
-qword[2] a:int = 3
-qword[0] a:int = 4 //add and operator without an operand after 4 and see what happen lol, i need to work on the error recovery... 
+qword[2] a:int = 3;
+qword[0] a:int = 4;
 //qword[3-2] a:int = 3-2
-qword[5] a:int = 2
+qword[5] a:int = 2;

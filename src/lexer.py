@@ -3,24 +3,13 @@ import re
 import preprocessor
 
 class token():
-    def __init__ (self, token, tag, char, line):
-        self.token = token
+    def __init__ (self, val, tag, char, line):
+        self.val = val
         self.tag = tag
         self.char = char
         self.line = line
 
-    def get_line(self):
-        return self.line
-    def get_char(self):
-        return self.char
-
-    def get_token(self):
-        return self.token
-    def get_tag(self):
-        return self.tag
-
 def lex(characters, token_exprs):
-    characters = preprocessor.preprocess(characters)
     pos = 0
 
     line = 1
