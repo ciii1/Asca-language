@@ -692,8 +692,10 @@ def parse_expression_recursive(state, rbp = 0):
             return None
     else:
         res = parse_value(state)
-    if res is None:
-        return None
+        if res is None:
+            res = parse_unary(state)
+            if res is None:
+                return None
     state = res
     left = res.get_output()
 
@@ -788,7 +790,7 @@ def parse_unary(state):
     if res is None:
         res = parse_unary(state)
         if res is None:
-            res = parse_expression_brackets(state)
+            res = parse_expression_recursive(state)
             if res is None:
                 return None
     state = res
