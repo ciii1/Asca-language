@@ -718,9 +718,9 @@ def parse_value(state):
             #no need to set output
         else:
             return None
-    elif token_type == "FLOAT" or\
-         token_type == "BOOL" or\
-         token_type == "INT":
+    elif token_type == "INT" or\
+         token_type == "FLOAT" or\
+         token_type == "BOOL":
         state.set_output(value)
     else:
         return None
@@ -866,9 +866,9 @@ def parse_continue(state):
     return state
 
 def throw_parse_error(msg, state):
-    sys.stderr.write("Error: %s at line %s: %s \n" % (msg, state.get_token().line, state.get_token().char))
+    sys.stderr.write("syntax_error: %s at line %s: %s \n" % (msg, state.get_token().line, state.get_token().char))
     state.is_error = True
 
 def throw_semicolon_error(state):
-    sys.stderr.write("Error: expected a semicolon at line %s: %s \n" % (state.get_token().line, state.get_token().char+len(state.get_token().val)))
+    sys.stderr.write("syntax_error: expected a semicolon at line %s: %s \n" % (state.get_token().line, state.get_token().char+len(state.get_token().val)))
     state.is_error = True    

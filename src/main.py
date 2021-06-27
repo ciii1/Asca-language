@@ -8,12 +8,12 @@ def init_tokens(input):
 
     RESERVED     = 'RESERVED'
     INT          = 'INT'
+    FLOAT        = 'FLOAT'
+    BOOL         = 'BOOL'
+    CHAR         = 'CHAR'
     ID           = 'ID'
     SIZE         = 'SIZE'
     STRING       = 'STRING'
-    BOOL         = 'BOOL'
-    CHAR         = 'CHAR'
-    FLOAT        = 'FLOAT'
     OPERATOR     = 'OPERATOR'
     
     token_exprs = [
@@ -89,6 +89,7 @@ else:
         tokens = init_tokens(code)
         res = parser.parse(tokens)
         if not res.is_error:
-            print(res.get_output())
+            #print(res.get_output())
+            
             analyzer.analyze(res.get_output())
         code = input("@>")  
