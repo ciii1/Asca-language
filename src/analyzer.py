@@ -6,16 +6,16 @@ class analyzer_state():
     def __init__(self):
         self.function_list = {}
         self.variable_list = {}
+        self.type_list = {}
         self.is_error = False
         self.is_in_while = False
         self.is_in_function = False
 
-    def is_var_exist(self, token):
+    def is_variable_exist(self, token):
         res = self.variable_list.get(token.val)
         if res is None:
             res = self.function_list.get(token.val)
             if res is None:
-                throw_error("undeclared variable: %s" % token.val, token)
                 return None
         else:
             return res
@@ -23,11 +23,7 @@ class analyzer_state():
     def is_function_exist(self, token):
         res = self.function_list.get(token.val)
         if res is None:
-            res = self.variable_list.get(token.val)
-            if res is None:
-                throw_error("undeclared function %s" % token.val, token)
-            else:
-                throw_error("can't call a non-function identifier", token)
+            return None
         else:
             return res
 
@@ -44,6 +40,32 @@ def analyze(ast):
             res = analyze_expression(item["content"], state)
             if res is None:
                 state.is_error = True
+        elif item["context"] == "variable_declaration":
+            res = analyze_variable_declaration(item["content"], state)
+            if res is None:
+                state.is_error = True
+            state = res
+
+def analyze_variable_declaration(ast, state):
+    if ast["init"] is not None:
+        if ast["array-size"] is not None:
+            throw_error("can't assign to an array", ast["size"])
+            return None
+        res = analyze_expression(ast["init"]["content"], state)
+        if res is None:
+            return None 
+        if not is_literal(res) and\
+           ast["type"].val != res.type:
+            throw_error("cannot assign %s to %s" % (res.type, ast["type"].val), ast["size"])
+            return None
+    if state.is_variable_exist(ast["id"]):
+        throw_error("variable %s is already exist" % ast["id"].val, ast["size"])
+        return None
+    if ast["array-size"] is None:
+        state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": None}
+    else:
+        state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": ast["array-size"].val}
+    return state
 
 def analyze_expression(ast, state):
     if type(ast) is list:
@@ -65,13 +87,11 @@ def analyze_infix(ast, state):
        operator.val == "-" or\
        operator.val == "*" or\
        operator.val == "/":
-        if is_literal(left) and\
-           is_literal(right):
-            return left
-        if left.type == right.type:
+        if is_literal(left) or is_literal(right) or\
+           left.type == right.type:
             return left
     
-    throw_error("Mismatched type for operator %s" % operator.val, operator)
+    throw_error("mismatched type" % operator.val, operator)
 
 def analyze_unary(ast, state):
     operator = ast[0]
@@ -82,7 +102,8 @@ def analyze_unary(ast, state):
     if operator.val == "-" or\
        operator.val == "+":
         if is_literal(operand) or\
-           operand.type == "LIT":
+           operand.type == "LIT" or\
+           operand.is_in_memory:
             return operand
     elif operator.val == "@":
         if is_array(operand) or\
@@ -92,9 +113,8 @@ def analyze_unary(ast, state):
     elif operator.val == "$":
         operand.type = "LIT"
         operand.is_in_memory = False
-        return operand
-    
-    throw_error("Mismatched type for unary operator %s" % operator.val, operator)
+        return operand    
+    throw_error("mismatched type for unary operator %s" % operator.val, operator)
 
 def analyze_value(ast, state):
     if type(ast) is dict:
@@ -106,10 +126,11 @@ def analyze_value(ast, state):
         return item(ast.tag, False)
 
 def analyze_identifier(ast, state):
-    res = state.is_var_exist(ast["value"])
+    res = state.is_variable_exist(ast["value"])
     if res is None:
+        throw_error("undeclared variable: %s" % ast["value"].val, ast["value"])
         return None
-    return item(res["tag"], True)
+    return item(res["type"], True)
 
 def analyze_function_call(ast, state):
     pass
@@ -124,8 +145,7 @@ def is_literal(val):
     else:
         return False
 def is_array(val):
-    if val.type == "STRING" or\
-       val.type == "LIT":
+    if val.type == "STRING":
         return True
     else:
         return False

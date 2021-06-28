@@ -157,7 +157,7 @@ def catch_not_match(state):
         else:
             throw_parse_error("unexpected token: %s " % state.get_token().val, state)
     else:
-        throw_parse_error("unexpected EOF", state)
+        sys.stderr.write("syntax_error: unexpected EOF\n")
 
 def parse_type_declaration(state):
     output = {
