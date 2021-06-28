@@ -16,7 +16,7 @@ def preprocess(characters):
                     pos+=1
                 else:
                     sys.stderr.write("peprocessor_error: unexpected EOF while processing comments \n")
-                    #sys.exit(1)
+                    sys.exit(1)
             output += "  "
             pos+=2
         elif characters[pos:pos+2] == "//":
