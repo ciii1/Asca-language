@@ -29,7 +29,6 @@ func get_person(qword x:person) : ptr {
 }
 byte y:person = 1;
 byte x:move = 2;
-
 print(get_person(y));
 print(get_move(x));
 

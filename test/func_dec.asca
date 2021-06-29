@@ -13,7 +13,7 @@ func loop_str(word msg:ptr, word loop:int) : ptr {
 	for(word x:int = 0; x < loop; x+=1;){
 		for(word i:int = 0; i < str_len(msg); i+=1;){
 			buff_ptr = alloc(1); //allocate 1 byte
-			$buff_ptr = msg[i];
+			$(byte)buff_ptr = msg[i];
 		}
 	}
 	return out_ptr;

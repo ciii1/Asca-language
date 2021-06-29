@@ -1,7 +1,7 @@
-qword file:pointer;
+qword file:ptr;
 file = open("~/hello");
-qword str:pointer = read(file);
+qword str:ptr = read(file);
 print(str);
-$str + 1 = 'h';
-print(str, 22);
+$(byte)(str + 1) = 'h';
+print(str);
 

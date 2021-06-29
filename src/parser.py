@@ -672,11 +672,21 @@ def get_associativity(token):
 
 def parse_unary(state):
     output = []
-    if state.get_token().val == "$" or\
-       state.get_token().val == "@" or\
+    if state.get_token().val == "@" or\
        state.get_token().val == "-" or\
        state.get_token().val == "+":
         output.append(state.get_token())
+    elif state.get_token().val == "$":
+        output.append(state.get_token())
+        state.inc_position()
+        if state.get_token().val != "(":
+            return None
+        state.inc_position()
+        if state.get_token().tag != "SIZE":
+            return None
+        state.inc_position()
+        if state.get_token().val != ")":
+            return None
     else:
         return None
 

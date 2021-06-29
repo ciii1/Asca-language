@@ -20,18 +20,11 @@ class analyzer_state():
         else:
             return res
 
-    def is_function_exist(self, token):
-        res = self.function_list.get(token.val)
-        if res is None:
-            return None
-        else:
-            return res
-
 class item():
-    def __init__(self, dtype, is_in_memory):
+    def __init__(self, token, dtype, is_in_memory):
+        self.token = token
         self.type = dtype
-        self.is_in_memory = is_in_memory
-        
+        self.is_in_memory = is_in_memory        
         
 def analyze(ast):
     state = analyzer_state()
@@ -44,7 +37,23 @@ def analyze(ast):
             res = analyze_variable_declaration(item["content"], state)
             if res is None:
                 state.is_error = True
-            state = res
+            else:
+                state = res
+        elif item["context"] == "type_declaration":
+            res = analyze_type_declaration(item["content"], state)
+            if res is None:
+                state.is_error = True
+            else:
+                state = res
+    return state
+
+def analyze_type_declaration(ast, state):
+    is_exist = state.type_list.get(ast["id"].val)
+    if is_exist:
+        throw_error("type '%s' is already exist" % ast["id"].val, ast["id"])
+        return None
+    state.type_list[ast["id"].val] = {"min_size":ast["min_size"].val}
+    return state
 
 def analyze_variable_declaration(ast, state):
     if ast["init"] is not None:
@@ -56,7 +65,7 @@ def analyze_variable_declaration(ast, state):
             return None 
         if not is_literal(res) and\
            ast["type"].val != res.type:
-            throw_error("cannot assign %s to %s" % (res.type, ast["type"].val), ast["size"])
+            throw_error("cannot assign '%s' to '%s'" % (res.type, ast["type"].val), ast["size"])
             return None
     if state.is_variable_exist(ast["id"]):
         throw_error("variable %s is already exist" % ast["id"].val, ast["size"])
@@ -65,7 +74,14 @@ def analyze_variable_declaration(ast, state):
         state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": None}
     else:
         state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": ast["array-size"].val}
+    res = state.type_list.get(ast["type"].val)
+    if res is None:
+        throw_error("undeclared type", ast["type"])
+        return None
+    if size_to_number(res["min_size"])  > size_to_number(ast["size"].val):
+        throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
     return state
+
 
 def analyze_expression(ast, state):
     if type(ast) is list:
@@ -82,16 +98,25 @@ def analyze_infix(ast, state):
     right = analyze_expression(ast[2], state)
     if left is None or right is None:
         return None
-
-    if operator.val == "+" or\
-       operator.val == "-" or\
-       operator.val == "*" or\
-       operator.val == "/":
-        if is_literal(left) or is_literal(right) or\
-           left.type == right.type:
-            return left
-    
-    throw_error("mismatched type" % operator.val, operator)
+    if operator.tag == "ARITHMETICAL_OPERATOR" or\
+       operator.tag == "RELATIONAL_OPERATOR":
+        if not is_literal(left) and not is_literal(right) and\
+           left.type  != right.type:
+            throw_error("mismatched type", left.token)
+    elif operator.tag == "ASSIGNMENT_OPERATOR":
+        if is_array(left):
+            throw_error("cannot assign to an array", left.token)
+            return None
+        if not left.is_in_memory:
+            throw_error("cannot assign to a non-memory-stored value", left.token)
+            return None
+        if left.type != right.type and\
+           left.type != "LIT" and\
+           not is_literal(right):
+            throw_error("mismatched type", left.token)
+            return None
+        
+    return left
 
 def analyze_unary(ast, state):
     operator = ast[0]
@@ -108,12 +133,13 @@ def analyze_unary(ast, state):
     elif operator.val == "@":
         if is_array(operand) or\
            operand.is_in_memory:
-            operand.type = "LIT"
+            operand.type = "INT" #@ is just an operator that lookup the memory address of a value, it'll return an int ofc
             return operand
     elif operator.val == "$":
-        operand.type = "LIT"
-        operand.is_in_memory = False
-        return operand    
+        if not is_array(operand):
+            operand.type = "LIT"
+            operand.is_in_memory = True
+            return operand    
     throw_error("mismatched type for unary operator %s" % operator.val, operator)
 
 def analyze_value(ast, state):
@@ -123,17 +149,17 @@ def analyze_value(ast, state):
         elif ast["type"] == "function_call":
             return analyze_function_call(ast, state)
     else:
-        return item(ast.tag, False)
+        return item(ast, ast.tag, False)
 
 def analyze_identifier(ast, state):
     res = state.is_variable_exist(ast["value"])
     if res is None:
         throw_error("undeclared variable: %s" % ast["value"].val, ast["value"])
         return None
-    return item(res["type"], True)
+    return item(ast["value"], res["type"], True)
 
 def analyze_function_call(ast, state):
-    pass
+    return item(ast["value"], "LIT", True)
 
 def is_literal(val):
     if val.type == "INT"   or\
@@ -144,6 +170,7 @@ def is_literal(val):
         return True
     else:
         return False
+
 def is_array(val):
     if val.type == "STRING":
         return True
@@ -152,3 +179,13 @@ def is_array(val):
     
 def throw_error(msg, token):
     sys.stderr.write("semantic_error: %s at line %s: %s \n" % (msg, token.line , token.char+1))
+
+def size_to_number(size):
+    if size == "qword":
+        return 8
+    elif size == "dword":
+        return 4
+    elif size == "word":
+        return 2
+    elif size == "byte":
+        return 1
