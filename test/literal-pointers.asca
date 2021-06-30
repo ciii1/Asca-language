@@ -1,6 +1,9 @@
+type ptr:qword;
+type int;
+
 qword a:ptr = @"HELLO";
 print(a);
-a + 2 = 'L'; //a runtime error because "HELLO" is declared on .data section since it's a string literal
+$(byte)a + 2 = 'L'; //a segfault because "HELLO" is declared on .data section since it's a string literal
 dword num:int = 3;
 a = @num;
 1 + $(qword)a; //same as a + 3

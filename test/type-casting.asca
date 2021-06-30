@@ -1,3 +1,6 @@
+type int;
+type float:word;
+
 qword a:int;
 qword b:float = 2;
 a = $(qword)@b;

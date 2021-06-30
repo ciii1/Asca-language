@@ -178,7 +178,6 @@ def parse_type_declaration(state):
     state.inc_position()
     if state.get_token().val != ":":
         state.dec_position()
-        output["content"]["min_size"] = "byte";
         state.set_output(output)
         return state        
 
@@ -693,9 +692,9 @@ def parse_unary(state):
     state.inc_position()
     res = parse_value(state)
     if res is None:
-        res = parse_unary(state)
+        res = parse_expression_recursive(state)
         if res is None:
-            res = parse_expression_recursive(state)
+            res = parse_unary(state)
             if res is None:
                 return None
     state = res
@@ -833,17 +832,17 @@ def parse_return(state):
     output = {
         "context" : "return",
         "content" : {
+            "keyword": None,
             "value": None
         }
     }
     if state.get_token().val != "return":
         return None
-
+    output["content"]["keyword"] = state.get_token()
     state.inc_position()
     res = parse_expression(state)
     if res is None:
         return None
-
     state = res
     output["content"]["value"] = res.get_output()
     state.set_output(output)

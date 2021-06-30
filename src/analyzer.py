@@ -1,5 +1,17 @@
+import copy
 import lexer
 import sys
+
+#TODO:
+#-function
+#--return
+#-for loop
+#--break
+#--continue
+#-while loop
+#--break 
+#--continue
+#-if elif else
 
 #wrapper for global variables
 class analyzer_state():
@@ -9,7 +21,7 @@ class analyzer_state():
         self.type_list = {}
         self.is_error = False
         self.is_in_while = False
-        self.is_in_function = False
+        self.parent_function = None
 
     def is_variable_exist(self, token):
         res = self.variable_list.get(token.val)
@@ -26,8 +38,9 @@ class item():
         self.type = dtype
         self.is_in_memory = is_in_memory        
         
-def analyze(ast):
-    state = analyzer_state()
+def analyze(ast, state = None):
+    if state is None:
+        state = analyzer_state()
     for item in ast:
         if item["context"] == "expression":
             res = analyze_expression(item["content"], state)
@@ -45,14 +58,61 @@ def analyze(ast):
                 state.is_error = True
             else:
                 state = res
+        elif item["context"] == "function_declaration":
+            res = analyze_function_declaration(item["content"], state)
+            if res is None:
+                state.is_error = True
+            else:
+                state = res
+        elif item["context"] == "return":
+            res = analyze_return(item["content"], state)
+            if res is None:
+                state.is_error = True
+
     return state
 
+def analyze_function_declaration(ast, state):
+    local = copy.deepcopy(state)
+    local.variable_list = {}
+    local.parent_function = {"id": ast["id"].val, "type": ast["type"].val}
+    if state.is_variable_exist(ast["id"]):
+        throw_error("variable %s is already exist" % ast["id"].val, ast["id"])
+        return None
+    if state.type_list.get(ast["type"].val) is None:
+        throw_error("undeclared type", ast["type"])
+        return None
+    res = analyze(ast["parameters"], local)
+    if res.is_error:
+        return None
+    local.variable_list = res.variable_list
+    state.function_list[ast["id"].val] = {"parameters":res.variable_list, "type":ast["type"].val}
+    res = analyze(ast["body"], local)
+    if res.is_error:
+        return None
+    return state
+
+def analyze_return(ast, state):
+    if state.parent_function is None:
+        throw_error("return keyword outside function", ast["keyword"])
+        return None
+    res = analyze_expression(ast["value"]["content"], state)
+    if res is None:
+        return None
+    if not is_literal(res) and\
+       res.type != state.parent_function["type"]:
+        throw_error("return value mismatched with the function type", ast["keyword"])
+        return None
+    return res.type
+    
 def analyze_type_declaration(ast, state):
     is_exist = state.type_list.get(ast["id"].val)
     if is_exist:
         throw_error("type '%s' is already exist" % ast["id"].val, ast["id"])
         return None
-    state.type_list[ast["id"].val] = {"min_size":ast["min_size"].val}
+    if ast["min_size"] is None:
+        state.type_list[ast["id"].val] = {"min_size":"byte"}
+    else:
+        state.type_list[ast["id"].val] = {"min_size":ast["min_size"].val}
     return state
 
 def analyze_variable_declaration(ast, state):
@@ -71,9 +131,9 @@ def analyze_variable_declaration(ast, state):
         throw_error("variable %s is already exist" % ast["id"].val, ast["size"])
         return None
     if ast["array-size"] is None:
-        state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": None}
+        state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"]}
     else:
-        state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": ast["array-size"].val}
+        state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": ast["array-size"].val, "init":ast["init"]}
     res = state.type_list.get(ast["type"].val)
     if res is None:
         throw_error("undeclared type", ast["type"])
@@ -81,7 +141,6 @@ def analyze_variable_declaration(ast, state):
     if size_to_number(res["min_size"])  > size_to_number(ast["size"].val):
         throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
     return state
-
 
 def analyze_expression(ast, state):
     if type(ast) is list:

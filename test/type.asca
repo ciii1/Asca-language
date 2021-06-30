@@ -1,5 +1,6 @@
 type move;
 type person;
+type ptr:qword;
 
 func get_move(qword x:move) : ptr {
 	if(x == 0) {
@@ -25,7 +26,6 @@ func get_person(qword x:person) : ptr {
 	} else {
 		return @"unknown";
 	}
-
 }
 byte y:person = 1;
 byte x:move = 2;

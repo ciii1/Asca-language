@@ -1,2 +1,5 @@
+type int;
+type char;
+
 dword hi : int;
 byte hello : char = 'a';
