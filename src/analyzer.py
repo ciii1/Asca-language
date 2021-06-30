@@ -3,8 +3,6 @@ import lexer
 import sys
 
 #TODO:
-#-function
-#--return
 #-for loop
 #--break
 #--continue
@@ -85,9 +83,8 @@ def analyze_function_declaration(ast, state):
     if res.is_error:
         return None
     local.variable_list = res.variable_list
-    state.function_list[ast["id"].val] = {"parameters":res.variable_list, "type":ast["type"].val}
-    res = analyze(ast["body"], local)
-    if res.is_error:
+    state.function_list[ast["id"].val] = {"parameters":copy.deepcopy(res.variable_list), "type":ast["type"].val}
+    if analyze(ast["body"], local).is_error:
         return None
     return state
 
@@ -218,7 +215,19 @@ def analyze_identifier(ast, state):
     return item(ast["value"], res["type"], True)
 
 def analyze_function_call(ast, state):
-    return item(ast["value"], "LIT", True)
+    res = state.function_list.get(ast["value"].val)
+    if res is None:
+        throw_error("undeclared function '%s'" % ast["value"].val, ast["value"])
+        return None
+    #check parameters 
+    expr = analyze(ast["parameters"], state)
+    if expr is None:
+        return None    
+    #check length
+    if len(ast["parameters"]) != len(state.function_list[ast["value"].val]["parameters"]):
+        throw_error("expected %i parameters but %i were given" % (len(state.function_list[ast["value"].val]["parameters"]), len(ast["parameters"])), ast["value"])
+        return None
+    return item(ast["value"], res["type"], False)
 
 def is_literal(val):
     if val.type == "INT"   or\

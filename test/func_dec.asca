@@ -1,9 +1,18 @@
 type ptr:qword;
 type int;
+type void;
+
+func print(qword msg:ptr): void{
+	//syscall here
+}
+func alloc(qword block:int): ptr {
+	return @"not implemented";
+}
+
 
 func add(qword a:int, qword b:int) : ptr{
 	qword res:int = a+b;
-	return con_int_str(@"a+b =", res);
+	print(res);
 }
 
 /*

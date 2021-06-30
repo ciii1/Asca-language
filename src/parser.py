@@ -2,18 +2,7 @@ import lexer
 import sys
 
 #TODO
-#chapter 1: expressions(DONE)~
-#-----
-#
-#chapter 2: control flow(DONE)~
-#------
-#
-#chapter 3: functional(DONE)~
-#-------
-#
-#chapter 4: final touch~
-#-better error output
-#-better error recovery
+#REWRITE THIS THING IN ASCA WHEN THE ENTIRE COMPILER IS DONE
 
 class parser_state():
     def __init__ (self, tokens, pos=0):
@@ -216,7 +205,7 @@ def parse_function_declaration(state):
     while True:
         if state.get_token().val == ")":
             break
-        res = parse_variable_declaration(state)
+        res = parse_variable_declaration(state, is_arg=True)
         if res is None:
             return None
         state = res
@@ -502,7 +491,7 @@ def parse_else(state):
     state.set_output(output)
     return state
 
-def parse_variable_declaration(state):
+def parse_variable_declaration(state, is_arg=False):
     output = {
         "context": "variable_declaration",
         "content": {
@@ -520,6 +509,9 @@ def parse_variable_declaration(state):
 
     state.inc_position()
     if state.get_token().val == "[":
+        #array is not allowed in argument
+        if is_arg:
+            return None
         #expect a integer literal (VLA is not allowed in asca)
         state.inc_position()
         if state.get_token().tag != "INT":
@@ -546,6 +538,9 @@ def parse_variable_declaration(state):
         return None
     
     if state.peek_next_token().val == '=':
+        #can't assign in argument (currently, parameters cant have default values. I'll consider adding it in future version tho)
+        if is_arg:
+            return None
         state.inc_position(2)
         res = parse_expression(state)
         if res is not None:
