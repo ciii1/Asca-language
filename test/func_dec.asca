@@ -7,6 +7,8 @@ func print(qword msg:ptr): void{
 }
 func alloc(qword block:int): ptr {
 	return @"not implemented";
+	qword out:void;
+	return out;
 }
 
 

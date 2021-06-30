@@ -1,3 +1,7 @@
+type int;
+
+qword a:int;
+qword b:int;
 a=32;
 //now lets get funky
 a=b=a=2+2;

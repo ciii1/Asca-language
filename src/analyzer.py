@@ -40,6 +40,7 @@ def analyze(ast, state = None):
     if state is None:
         state = analyzer_state()
     for item in ast:
+        #print(state.function_list)
         if item["context"] == "expression":
             res = analyze_expression(item["content"], state)
             if res is None:
@@ -63,14 +64,14 @@ def analyze(ast, state = None):
             else:
                 state = res
         elif item["context"] == "return":
-            res = analyze_return(item["content"], state)
-            if res is None:
+            if analyze_return(item["content"], state) is None:
                 state.is_error = True
 
     return state
 
 def analyze_function_declaration(ast, state):
     local = copy.deepcopy(state)
+    local.is_error = False
     local.variable_list = {}
     local.parent_function = {"id": ast["id"].val, "type": ast["type"].val}
     if state.is_variable_exist(ast["id"]):
@@ -81,6 +82,7 @@ def analyze_function_declaration(ast, state):
         return None
     res = analyze(ast["parameters"], local)
     if res.is_error:
+        print(ast["id"].val)
         return None
     local.variable_list = res.variable_list
     state.function_list[ast["id"].val] = {"parameters":copy.deepcopy(res.variable_list), "type":ast["type"].val}
@@ -138,6 +140,7 @@ def analyze_variable_declaration(ast, state):
     if size_to_number(res["min_size"])  > size_to_number(ast["size"].val):
         throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
     return state
+
 
 def analyze_expression(ast, state):
     if type(ast) is list:
