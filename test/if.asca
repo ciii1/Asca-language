@@ -1,12 +1,16 @@
-a = 10;
-for(word i:int = 0; i < 200; i+=1;){
-	if(modulo(i, 2)) {
+type int;
+type bint:dword;
+
+qword a:int = 10;
+qword b:bint = 10;
+for(word i:int = 0; i < 200; i+=1){
+	if(i > 10 && i < 100) {
 		if(a > 10) {
 			a += 1;
 		} else {
 			a = 1;
 		}	
-	} elif (modulo(i, 4)) {
+	} elif (i > 100) {
 		a *= 2;
 	} else {
 		a -= 1;

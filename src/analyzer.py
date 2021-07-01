@@ -65,7 +65,9 @@ def analyze(ast, state = None):
         elif item["context"] == "while":
             if analyze_while(item["content"], state) is None:
                 state.is_error = True
-
+        elif item["context"] == "if":
+            if analyze_if(item["content"], state) is None:
+                state.is_error = True
     return state
 
 def analyze_function_declaration(ast, state):
@@ -81,7 +83,6 @@ def analyze_function_declaration(ast, state):
         return None
     res = analyze(ast["parameters"], local)
     if res.is_error:
-        print(ast["id"].val)
         return None
     local.variable_list = res.variable_list
     state.function_list[ast["id"].val] = {"parameters":copy.deepcopy(res.variable_list), "type":ast["type"].val}
@@ -89,13 +90,36 @@ def analyze_function_declaration(ast, state):
         return None
     return state
 
+def analyze_if(ast, state):
+    if analyze_expression(ast["condition"]["content"], state) is None:
+        return None
+    local = copy.deepcopy(state)
+    if ast["body"] is not None:
+        if analyze(ast["body"], local) is None:
+            return None
+    if ast["elif"] is not None:
+        for item in ast["elif"]:
+            if analyze_expression(item["content"]["condition"]["content"], state) is None:
+                return None
+            local = copy.deepcopy(state)
+            if item["content"]["body"] is not None:
+                if analyze(item["content"]["body"], local).is_error:
+                    return None
+    if ast["else"] is not None:
+        local = copy.deepcopy(state)
+        if ast["else"]["content"]["body"]: 
+            if analyze(ast["else"]["content"]["body"], local).is_error:
+                return None
+    return state
+
+
 def analyze_while(ast, state):
     if analyze_expression(ast["condition"]["content"], state) is None:
         return None
     local = copy.deepcopy(state)
     local.is_in_loop = True
     if ast["body"] is not None:
-        if analyze(ast["body"], local) is None:
+        if analyze(ast["body"], local).is_error:
             return None
     return state
 
@@ -109,7 +133,7 @@ def analyze_for(ast, state):
     local = copy.deepcopy(state)
     local.is_in_loop = True
     if ast["body"] is not None:
-        if analyze(ast["body"], local) is None:
+        if analyze(ast["body"], local).is_error:
             return None
     return state
 
@@ -174,6 +198,7 @@ def analyze_variable_declaration(ast, state):
         return None
     if size_to_number(res["min_size"])  > size_to_number(ast["size"].val):
         throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
+        return None
     return state
 
 def analyze_expression(ast, state):
@@ -196,6 +221,7 @@ def analyze_infix(ast, state):
         if not is_literal(left) and not is_literal(right) and\
            left.type  != right.type:
             throw_error("mismatched type", left.token)
+            return None
     elif operator.tag == "ASSIGNMENT_OPERATOR":
         if is_array(left):
             throw_error("cannot assign to an array", left.token)

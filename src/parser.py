@@ -346,7 +346,7 @@ def parse_for(state):
     if res is None:
         return None
     state = res
-    output["body"] = res.get_output()
+    output["content"]["body"] = res.get_output()
     state.inc_position()
     if state.get_token().val != "}":
         return None
