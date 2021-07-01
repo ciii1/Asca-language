@@ -15,9 +15,6 @@ func add(qword a:int, qword b:int) : ptr{
 	print(res);
 }
 
-/*
-this function equals to msg * loop in python
-*/
 func loop_str(qword msg:ptr, word len:int ,word loop:int) : ptr {
 	qword out_ptr:ptr = alloc(0); //place the out_ptr to the program end
 	qword buff_ptr:ptr;

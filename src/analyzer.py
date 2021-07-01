@@ -257,11 +257,13 @@ def analyze_unary(ast, state):
         if operand.is_array or\
            operand.is_in_memory:
             operand.type = "INT" #@ is just an operator that lookup the memory address of a value, it'll return an int ofc
+            operand.is_array = False
             return operand
     elif operator.val == "$":
         if not operand.is_array:
             operand.type = "LIT"
             operand.is_in_memory = True
+            operand.is_array = False
             return operand    
     throw_error("mismatched type for unary operator %s" % operator.val, operator)
     return None
