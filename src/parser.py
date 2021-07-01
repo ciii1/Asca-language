@@ -204,7 +204,7 @@ def parse_function_declaration(state):
     while True:
         if state.get_token().val == ")":
             break
-        res = parse_variable_declaration(state, is_arg=True)
+        res = parse_variable_declaration(state)
         if res is None:
             return None
         state = res
@@ -494,7 +494,7 @@ def parse_else(state):
     state.set_output(output)
     return state
 
-def parse_variable_declaration(state, is_arg=False):
+def parse_variable_declaration(state):
     output = {
         "context": "variable_declaration",
         "content": {
@@ -512,9 +512,6 @@ def parse_variable_declaration(state, is_arg=False):
 
     state.inc_position()
     if state.get_token().val == "[":
-        #array is not allowed in argument
-        if is_arg:
-            return None
         #expect a integer literal (VLA is not allowed in asca)
         state.inc_position()
         if state.get_token().tag != "INT":
@@ -541,9 +538,6 @@ def parse_variable_declaration(state, is_arg=False):
         return None
     
     if state.peek_next_token().val == '=':
-        #can't assign in argument (currently, parameters cant have default values. I'll consider adding it in future version tho)
-        if is_arg:
-            return None
         state.inc_position(2)
         res = parse_expression(state)
         if res is not None:

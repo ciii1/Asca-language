@@ -3,7 +3,6 @@ import lexer
 import sys
 
 #TODO:
-#-if elif else
 
 #wrapper for global variables
 class analyzer_state():
@@ -25,48 +24,49 @@ class analyzer_state():
             return res
 
 class item():
-    def __init__(self, token, dtype, is_in_memory):
+    def __init__(self, token, dtype, is_array, is_in_memory):
         self.token = token
         self.type = dtype
-        self.is_in_memory = is_in_memory        
+        self.is_array = is_array
+        self.is_in_memory = is_in_memory  
         
 def analyze(ast, state = None):
     if state is None:
         state = analyzer_state()
-    for item in ast:
-        if item["context"] == "expression":
-            res = analyze_expression(item["content"], state)
+    for tree in ast:
+        if tree["context"] == "expression":
+            res = analyze_expression(tree["content"], state)
             if res is None:
                 state.is_error = True
-        elif item["context"] == "variable_declaration":
-            res = analyze_variable_declaration(item["content"], state)
+        elif tree["context"] == "variable_declaration":
+            res = analyze_variable_declaration(tree["content"], state)
             if res is None:
                 state.is_error = True
-        elif item["context"] == "type_declaration":
-            res = analyze_type_declaration(item["content"], state)
+        elif tree["context"] == "type_declaration":
+            res = analyze_type_declaration(tree["content"], state)
             if res is None:
                 state.is_error = True
-        elif item["context"] == "function_declaration":
-            res = analyze_function_declaration(item["content"], state)
+        elif tree["context"] == "function_declaration":
+            res = analyze_function_declaration(tree["content"], state)
             if res is None:
                 state.is_error = True
-        elif item["context"] == "return":
-            if analyze_return(item["content"], state) is None:
+        elif tree["context"] == "return":
+            if analyze_return(tree["content"], state) is None:
                 state.is_error = True
-        elif item["context"] == "for":
-            if analyze_for(item["content"], state) is None:
+        elif tree["context"] == "for":
+            if analyze_for(tree["content"], state) is None:
                 state.is_error = True
-        elif item["context"] == "break":
-            if analyze_break(item, state) is None:
+        elif tree["context"] == "break":
+            if analyze_break(tree, state) is None:
                 state.is_error = True
-        elif item["context"] == "continue":
-            if analyze_continue(item, state) is None:
+        elif tree["context"] == "continue":
+            if analyze_continue(tree, state) is None:
                 state.is_error = True
-        elif item["context"] == "while":
-            if analyze_while(item["content"], state) is None:
+        elif tree["context"] == "while":
+            if analyze_while(tree["content"], state) is None:
                 state.is_error = True
-        elif item["context"] == "if":
-            if analyze_if(item["content"], state) is None:
+        elif tree["context"] == "if":
+            if analyze_if(tree["content"], state) is None:
                 state.is_error = True
     return state
 
@@ -81,10 +81,15 @@ def analyze_function_declaration(ast, state):
     if state.type_list.get(ast["type"].val) is None:
         throw_error("undeclared type", ast["type"])
         return None
-    res = analyze(ast["parameters"], local)
-    if res.is_error:
-        return None
-    local.variable_list = res.variable_list
+    for param in ast["parameters"]:
+        res = analyze_variable_declaration(param["content"], local)
+        if res is None:
+            return None
+        if param["content"]["array-size"] is not None:
+            throw_error("can't use array as a parameter for a function", ast["id"])
+            return None
+        if param["content"]["init"] is not None:
+            throw_error("cannot assign in parameter list", ast["id"])
     state.function_list[ast["id"].val] = {"parameters":copy.deepcopy(res.variable_list), "type":ast["type"].val}
     if analyze(ast["body"], local).is_error:
         return None
@@ -223,7 +228,7 @@ def analyze_infix(ast, state):
             throw_error("mismatched type", left.token)
             return None
     elif operator.tag == "ASSIGNMENT_OPERATOR":
-        if is_array(left):
+        if left.is_array:
             throw_error("cannot assign to an array", left.token)
             return None
         if not left.is_in_memory:
@@ -249,12 +254,12 @@ def analyze_unary(ast, state):
            operand.is_in_memory:
             return operand
     elif operator.val == "@":
-        if is_array(operand) or\
+        if operand.is_array or\
            operand.is_in_memory:
             operand.type = "INT" #@ is just an operator that lookup the memory address of a value, it'll return an int ofc
             return operand
     elif operator.val == "$":
-        if not is_array(operand):
+        if not operand.is_array:
             operand.type = "LIT"
             operand.is_in_memory = True
             return operand    
@@ -268,14 +273,21 @@ def analyze_value(ast, state):
         elif ast["type"] == "function_call":
             return analyze_function_call(ast, state)
     else:
-        return item(ast, ast.tag, False)
+        if ast.tag == "STRING":
+            return item(ast, ast.tag, True, False)
+        else:
+            return item(ast, ast.tag, False, False)
 
 def analyze_identifier(ast, state):
     res = state.is_variable_exist(ast["value"])
     if res is None:
         throw_error("undeclared variable: %s" % ast["value"].val, ast["value"])
         return None
-    return item(ast["value"], res["type"], True)
+    if res["array-size"] is None:
+        return item(ast["value"], res["type"], False, True)
+    else:
+        return item(ast["value"], res["type"], True, True)
+
 
 def analyze_function_call(ast, state):
     res = state.function_list.get(ast["value"].val)
@@ -283,14 +295,18 @@ def analyze_function_call(ast, state):
         throw_error("undeclared function '%s'" % ast["value"].val, ast["value"])
         return None
     #check parameters 
-    expr = analyze(ast["parameters"], state)
-    if expr is None:
-        return None    
+    for arg in ast["parameters"]:
+        expr = analyze_expression(arg["content"], state)
+        if expr is None:
+            return None
+        if expr.is_array:
+            throw_error("can't pass array to function", ast["value"])
+            return None
     #check length
     if len(ast["parameters"]) != len(state.function_list[ast["value"].val]["parameters"]):
         throw_error("expected %i parameters but %i were given" % (len(state.function_list[ast["value"].val]["parameters"]), len(ast["parameters"])), ast["value"])
         return None
-    return item(ast["value"], res["type"], False)
+    return item(ast["value"], res["type"], False, False)
 
 def is_literal(val):
     if val.type == "INT"   or\
@@ -298,12 +314,6 @@ def is_literal(val):
        val.type == "CHAR"  or\
        val.type == "BOOL"  or\
        val.type == "LIT":
-        return True
-    else:
-        return False
-
-def is_array(val):
-    if val.type == "STRING":
         return True
     else:
         return False
