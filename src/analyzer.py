@@ -3,7 +3,6 @@ import lexer
 import sys
 
 #TODO:
-#-while loop
 #-if elif else
 
 #wrapper for global variables
@@ -63,6 +62,10 @@ def analyze(ast, state = None):
         elif item["context"] == "continue":
             if analyze_continue(item, state) is None:
                 state.is_error = True
+        elif item["context"] == "while":
+            if analyze_while(item["content"], state) is None:
+                state.is_error = True
+
     return state
 
 def analyze_function_declaration(ast, state):
@@ -84,6 +87,30 @@ def analyze_function_declaration(ast, state):
     state.function_list[ast["id"].val] = {"parameters":copy.deepcopy(res.variable_list), "type":ast["type"].val}
     if analyze(ast["body"], local).is_error:
         return None
+    return state
+
+def analyze_while(ast, state):
+    if analyze_expression(ast["condition"]["content"], state) is None:
+        return None
+    local = copy.deepcopy(state)
+    local.is_in_loop = True
+    if ast["body"] is not None:
+        if analyze(ast["body"], local) is None:
+            return None
+    return state
+
+def analyze_for(ast, state):
+    if analyze([ast["setup"]], state) is None:
+        return None
+    if analyze([ast["condition"]], state) is None:
+        return None
+    if analyze([ast["increment"]], state) is None:
+        return None
+    local = copy.deepcopy(state)
+    local.is_in_loop = True
+    if ast["body"] is not None:
+        if analyze(ast["body"], local) is None:
+            return None
     return state
 
 def analyze_continue(ast, state):
@@ -149,20 +176,6 @@ def analyze_variable_declaration(ast, state):
         throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
     return state
 
-def analyze_for(ast, state):
-    if analyze([ast["setup"]], state) is None:
-        return None
-    if analyze([ast["condition"]], state) is None:
-        return None
-    if analyze([ast["increment"]], state) is None:
-        return None
-    local = copy.deepcopy(state)
-    local.is_in_loop = True
-    if ast["body"] is not None:
-        if analyze(ast["body"], local) is None:
-            return None
-    return state
-
 def analyze_expression(ast, state):
     if type(ast) is list:
             if len(ast) == 2:
@@ -203,7 +216,6 @@ def analyze_unary(ast, state):
     operand = analyze_expression(ast[1], state)
     if operand is None:
         return None
-
     if operator.val == "-" or\
        operator.val == "+":
         if is_literal(operand) or\
@@ -221,6 +233,7 @@ def analyze_unary(ast, state):
             operand.is_in_memory = True
             return operand    
     throw_error("mismatched type for unary operator %s" % operator.val, operator)
+    return None
 
 def analyze_value(ast, state):
     if type(ast) is dict:
