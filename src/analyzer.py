@@ -276,7 +276,7 @@ def analyze_value(ast, state):
             return analyze_function_call(ast, state)
     else:
         if ast.tag == "STRING":
-            return item(ast, ast.tag, True, False)
+            return item(ast, ast.tag, True, True)
         else:
             return item(ast, ast.tag, False, False)
 
