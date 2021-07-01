@@ -7,8 +7,6 @@ func print(qword msg:ptr): void{
 }
 func alloc(qword block:int): ptr {
 	return @"not implemented";
-	qword out:void;
-	return out;
 }
 
 
@@ -24,8 +22,8 @@ func loop_str(qword msg:ptr, word loop:int) : ptr {
 	qword out_ptr:ptr = alloc(0); //place the out_ptr to the program end
 	qword buff_ptr:ptr;
 	
-	for(word x:int = 0; x < loop; x+=1;){
-		for(word i:int = 0; i < str_len(msg); i+=1;){
+	for(word x:int = 0; x < loop; x+=1){
+		for(word i:int = 0; i < str_len(msg); i+=1){
 			buff_ptr = alloc(1); //allocate 1 byte
 			$(byte)buff_ptr = msg[i];
 		}

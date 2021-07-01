@@ -5,12 +5,6 @@ import analyzer
 import sys
 
 def init_tokens(input):
-
-    ARITHMETICAL_OPERATOR = 'ARITHMETIC_OPERATOR'
-    CONDITIONAL_OPERATOR = 'CONDITIONAL_OPERATOR'
-    RELATIONAL_OPERATOR = 'RELATIONAL_OPERATOR'
-
-    
     token_exprs = [
         (r'\n',                             None),
         (r'[ \t]+',                         None),

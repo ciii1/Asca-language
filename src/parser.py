@@ -2,8 +2,7 @@ import lexer
 import sys
 
 #TODO
-#REWRITE THIS THING IN ASCA WHEN THE ENTIRE COMPILER IS DONE
-
+#fix error recovery. ITS A CHAOS RN
 class parser_state():
     def __init__ (self, tokens, pos=0):
         self.tokens = tokens
@@ -307,46 +306,50 @@ def parse_for(state):
         throw_parse_error("expected a '('", state)
 
     state.inc_position()
-    res = parse_basic(state)
+    res = parse_expression(state)
     if res is None:
-        return None
+        res = parse_variable_declaration(state)
+        if res is None:
+            return None
     state = res
-    output["content"]["setup"] = res.get_output()
-    
+    output["content"]["setup"] = res.get_output() 
     state.inc_position()
-    res = parse_basic(state)
-    if res is None:
+    if state.get_token().val != ";":
         return None
+    state.inc_position() 
+    res = parse_expression(state)
+    if res is None:
+        res = parse_variable_declaration(state)
+        if res is None:
+            return None
     state = res
     output["content"]["condition"] = res.get_output()
-
     state.inc_position()
-    res = parse_basic(state)
-    if res is None:
+    if state.get_token().val != ";":
         return None
+    state.inc_position()
+    res = parse_expression(state)
+    if res is None:
+        res = parse_variable_declaration(state)
+        if res is None:
+            return None
     state = res
     output["content"]["increment"] = res.get_output()
-
     state.inc_position()
     if state.get_token().val != ")":
         return None
-
     state.inc_position()
     if state.get_token().val != "{":
         return None
-
     state.inc_position()
     res = parse_body(state)
     if res is None:
         return None
-
     state = res
     output["body"] = res.get_output()
-
     state.inc_position()
     if state.get_token().val != "}":
         return None
-
     state.set_output(output)
     return state
 

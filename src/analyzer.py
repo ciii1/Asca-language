@@ -3,12 +3,7 @@ import lexer
 import sys
 
 #TODO:
-#-for loop
-#--break
-#--continue
 #-while loop
-#--break 
-#--continue
 #-if elif else
 
 #wrapper for global variables
@@ -18,7 +13,7 @@ class analyzer_state():
         self.variable_list = {}
         self.type_list = {}
         self.is_error = False
-        self.is_in_while = False
+        self.is_in_loop = False
         self.parent_function = None
 
     def is_variable_exist(self, token):
@@ -40,7 +35,6 @@ def analyze(ast, state = None):
     if state is None:
         state = analyzer_state()
     for item in ast:
-        #print(state.function_list)
         if item["context"] == "expression":
             res = analyze_expression(item["content"], state)
             if res is None:
@@ -49,24 +43,26 @@ def analyze(ast, state = None):
             res = analyze_variable_declaration(item["content"], state)
             if res is None:
                 state.is_error = True
-            else:
-                state = res
         elif item["context"] == "type_declaration":
             res = analyze_type_declaration(item["content"], state)
             if res is None:
                 state.is_error = True
-            else:
-                state = res
         elif item["context"] == "function_declaration":
             res = analyze_function_declaration(item["content"], state)
             if res is None:
                 state.is_error = True
-            else:
-                state = res
         elif item["context"] == "return":
             if analyze_return(item["content"], state) is None:
                 state.is_error = True
-
+        elif item["context"] == "for":
+            if analyze_for(item["content"], state) is None:
+                state.is_error = True
+        elif item["context"] == "break":
+            if analyze_break(item, state) is None:
+                state.is_error = True
+        elif item["context"] == "continue":
+            if analyze_continue(item, state) is None:
+                state.is_error = True
     return state
 
 def analyze_function_declaration(ast, state):
@@ -89,6 +85,18 @@ def analyze_function_declaration(ast, state):
     if analyze(ast["body"], local).is_error:
         return None
     return state
+
+def analyze_continue(ast, state):
+    if not state.is_in_loop:
+        throw_error("continue keyword outside a loop", ast["value"])
+        return None
+    return 0
+
+def analyze_break(ast, state):
+    if not state.is_in_loop:
+        throw_error("break keyword outside a loop", ast["value"])
+        return None
+    return 0
 
 def analyze_return(ast, state):
     if state.parent_function is None:
@@ -141,6 +149,19 @@ def analyze_variable_declaration(ast, state):
         throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
     return state
 
+def analyze_for(ast, state):
+    if analyze([ast["setup"]], state) is None:
+        return None
+    if analyze([ast["condition"]], state) is None:
+        return None
+    if analyze([ast["increment"]], state) is None:
+        return None
+    local = copy.deepcopy(state)
+    local.is_in_loop = True
+    if ast["body"] is not None:
+        if analyze(ast["body"], local) is None:
+            return None
+    return state
 
 def analyze_expression(ast, state):
     if type(ast) is list:
