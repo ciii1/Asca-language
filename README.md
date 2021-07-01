@@ -3,9 +3,10 @@ a language where you able to specify variables size manually, this means that yo
 example syntax:
 ```
 qword a:int = 3; //declare an int with size of 8 byte (qword) on the stack
-print(str + a);
+qword str:ptr = @"Hello world"; //declare a pointer to a string that is located on the data section (the @ sign means a pointer)
+print(str);
 ```
-there will be ```type``` keyword wich let you declare your own type
+there will be ```type``` keyword wich lets you declare your own type
 ```
 type color: dword;
 
