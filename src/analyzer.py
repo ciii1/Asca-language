@@ -90,6 +90,7 @@ def analyze_function_declaration(ast, state):
             return None
         if param["content"]["init"] is not None:
             throw_error("cannot assign in parameter list", ast["id"])
+            return None
     state.function_list[ast["id"].val] = {"parameters":copy.deepcopy(res.variable_list), "type":ast["type"].val}
     if analyze(ast["body"], local).is_error:
         return None
@@ -224,8 +225,14 @@ def analyze_infix(ast, state):
     if operator.tag == "ARITHMETICAL_OPERATOR" or\
        operator.tag == "RELATIONAL_OPERATOR":
         if not is_literal(left) and not is_literal(right) and\
-           left.type  != right.type:
+           left.type != right.type:
             throw_error("mismatched type", left.token)
+            return None
+        if left.is_array:
+            throw_error("can't use array as operand", left.token)
+            return None
+        if right.is_array:
+            throw_error("can't use array as operand", right.token)
             return None
     elif operator.tag == "ASSIGNMENT_OPERATOR":
         if left.is_array:
