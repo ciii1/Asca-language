@@ -698,34 +698,23 @@ def parse_unary(state):
 def parse_value(state):
     token_type = state.get_token().tag
     value = state.get_token()
-    if token_type == "STRING":
-        res = parse_string(state)
-        if res is not None:
-            state = res
-            #no need to set output
-        else:
-            return None
-    elif token_type == "CHAR":
-        res = parse_char(state)
-        if res is not None:
-            state = res
-            #no need to set output
-        else:
-            return None
-    elif token_type == "ID":
+    if token_type == "ID":
         res = parse_identifier(state)
         if res is not None:
             state = res
             #no need to set output
+            return state
         else:
             return None
     elif token_type == "INT" or\
          token_type == "FLOAT" or\
-         token_type == "BOOL":
+         token_type == "BOOL" or\
+         token_type == "STRING" or\
+         token_type == "CHAR":
         state.set_output(value)
+        return state
     else:
         return None
-    return state
 
 def parse_identifier(state):
     output = {
@@ -760,30 +749,6 @@ def parse_identifier(state):
     else:
         state.set_output(output)
         return state
-
-def parse_string(state):
-    token = state.get_token()
-    #if it contains 0 char (specified 2 here cos the '"' is counted)
-    if len(token.val) == 2:
-        throw_parse_error("a string literal cannot be empty", state)
-        return None
-    
-    state.set_output(token)
-    return state
-
-def parse_char(state):
-    token = state.get_token()
-    #if it contains 2 or more character
-    if len(token.val) > 3:
-        throw_parse_error("a char literal can only contain 1 character", state)
-        return None
-    #if it contains 0 char
-    elif len(token.val) == 2:
-        throw_parse_error("a char literal cannot be empty", state)
-        return None
-
-    state.set_output(token)
-    return state
 
 def parse_function_call(state):
     output = {

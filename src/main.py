@@ -49,9 +49,9 @@ def init_tokens(input):
         (r'(?<![A-Za-z0-9_])break(?![A-Za-z0-9_])',         'RESERVED'),
         (r'(?<![A-Za-z0-9_])continue(?![A-Za-z0-9_])',      'RESERVED'),
         (r'(?<![A-Za-z0-9_])return(?![A-Za-z0-9_])',        'RESERVED'),
-        (r'\".*?\"',                                        'STRING'),
         (r'[0-9]+\.[0-9]+',                                 'FLOAT'),
-        (r'\'.*?\'',                                        'CHAR'),
+        (r'(?<=(?<!\\)")(.*?)(?=(?<!\\)")',                 'STRING'),
+        (r'(?<=(?<!\\)\')(\\.|.)(?=(?<!\\)\')',             'CHAR'),
         (r"""
           (?<![A-Za-z0-9_])true(?![A-Za-z0-9_])|
           (?<![A-Za-z0-9_])false(?![A-Za-z0-9_])
