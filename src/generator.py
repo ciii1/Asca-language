@@ -1,5 +1,3 @@
-#only include registers that we can actually use (rbp, etc excluded)
-REGISTERS_LIST = ["rax", "rbx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
 
 class generator_state():
     def __init__(self):
@@ -8,6 +6,7 @@ class generator_state():
         self.text_section = ""
         self.data_section = ""
         self.data_count = 0
+        self.data
 
     def add_data(self, value, size="db"):
         self.data_section += "_DATA" + self.data_count + size + value
@@ -30,6 +29,15 @@ def generate(ast):
                 state.text_section += "mov rax, " + res.val + "\n"
     print(state.text_section)
     return state
+
+def generate_variable_declaration(ast, state):
+    state.stack_position += size_to_number(ast["size"].val)
+    state.variable_list[ast["id"].val] = {"size":ast["size"].val, "position":state.stack_position}
+    if ast["init"] is not None:
+        init = generate_expression(ast["init"], state)
+        state.text_section += "mov " + ast["size"].val + " [rsp], " + init + "\n"
+    else:
+        state.text_section += "mov " + ast["size"].val + " [rsp], 0\n"
 
 def generate_expression(ast, state):
     if type(ast) is list:
@@ -57,11 +65,14 @@ def generate_infix(ast, state):
         elif ast[1].val == "/":
             return item(str(to_int(left) / to_int(right)), "INT", True, False)
         return item
-    #else:
-    #    if ast[1].token == "+":
-    #    elif ast[1].token == "-":
-    #    elif ast[1].token == "*":
-    #    elif ast[1].token == "/":
+    else:
+        #if left.is_constant:
+        #    state.text_section += "mov rax, " + left.val "\n"
+        #    st
+        if ast[1].token == "+":
+        elif ast[1].token == "-":
+        elif ast[1].token == "*":
+        elif ast[1].token == "/":
 
 def generate_unary(ast, state):
     operand = generate_expression(ast[1], state)
@@ -78,7 +89,7 @@ def generate_unary(ast, state):
 def generate_value(ast, state):
     if type(ast) is dict:
         if ast["type"] == "identifier":
-            #NOT IMPLEMENTED
+            generate_variable(ast, state)
             pass
         elif ast["type"] == "function_call":
             #NOT IMPLEMENTED
@@ -90,6 +101,10 @@ def generate_value(ast, state):
         else:
             return item(ast.val, ast.tag, True, False)
 
+def generate_variable(ast, state):
+    pos = state.stack_position - size_to_number(state.variable_list[ast["value"].val]["size"])
+    return item("[rsp-"+pos"]", "INT", False, True)
+
 def to_int(token):
     if token.type == "CHAR":
         return ord(token.val)
@@ -98,3 +113,117 @@ def to_int(token):
     elif token.type == "FLOAT":
         #TODO:ADD FLOAT SUPPORT
         return int(token.val)
+
+def convert_64bit_reg(reg, size):
+    reg_list = {
+            "rax":{
+                8:"rax",
+                4:"eax",
+                2:"ax",
+                1:"al"
+            },
+            "rbx":{
+                8:"rbx",
+                4:"ebx",
+                2:"bx",
+                1:"bl"
+            },
+            "rcx":{
+                8:"rcx",
+                4:"ecx",
+                2:"cx",
+                1:"cl"
+            },
+            "rdx":{
+                8:"rdx",
+                4:"edx",
+                2:"dx",
+                1:"dl"
+            },
+            "rsi":{
+                8:"rsi",
+                4:"esi",
+                2:"si",
+                1:"sil"
+            },
+            "rdi":{
+                8:"rdi",
+                4:"edi",
+                2:"di",
+                1:"dil"
+            },
+            "rsp":{
+                8:"rsp",
+                4:"esp",
+                2:"sp",
+                1:"spl"
+            },
+             "rbp":{
+                8:"rbp",
+                4:"ebp",
+                2:"bp",
+                1:"bpl"
+            },
+            "r8":{
+		    	8:"r8",
+		    	4:"r8d",
+		    	2:"r8w",
+		    	1:"r8b"
+		    },
+		    "r9":{
+		    	8:"r9",
+		    	4:"r9d",
+		    	2:"r9w",
+		    	1:"r9b"
+		    },
+		    "r10":{
+		    	8:"r10",
+		    	4:"r10d",
+		    	2:"r10w",
+		    	1:"r10b"
+		    },
+		    "r11":{
+		    	8:"r11",
+		    	4:"r11d",
+		    	2:"r11w",
+		    	1:"r11b"
+		    },
+		    "r12":{
+		    	8:"r12",
+		    	4:"r12d",
+		    	2:"r12w",
+		    	1:"r12b"
+		    },
+		    "r13":{
+		    	8:"r13",
+		    	4:"r13d",
+		    	2:"r13w",
+		    	1:"r13b"
+		    },
+		    "r14":{
+		    	8:"r14",
+		    	4:"r14d",
+		    	2:"r14w",
+		    	1:"r14b"
+		    },
+		    "r15":{
+		    	8:"r15",
+		    	4:"r15d",
+		    	2:"r15w",
+		    	1:"r15b"
+		    }
+    }
+    res = size_to_number(size)
+    if res is not None:
+        size = res
+    return reg_list[reg][size]
+
+def size_to_number(size):
+    if size == "qword":
+        return 8
+    elif size == "dword":
+        return 4
+    elif size == "word":
+        return 2
+    elif size == "byte":
+        return 1

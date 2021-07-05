@@ -4,6 +4,7 @@ import parser
 import analyzer
 import generator
 import sys
+import subprocess
 
 def init_tokens(input):
     token_exprs = [
@@ -50,8 +51,8 @@ def init_tokens(input):
         (r'(?<![A-Za-z0-9_])continue(?![A-Za-z0-9_])',      'RESERVED'),
         (r'(?<![A-Za-z0-9_])return(?![A-Za-z0-9_])',        'RESERVED'),
         (r'[0-9]+\.[0-9]+',                                 'FLOAT'),
-        (r'(?<=(?<!\\)")(.*?)(?=(?<!\\)")',                 'STRING'),
-        (r'(?<=(?<!\\)\')(\\.|.)(?=(?<!\\)\')',             'CHAR'),
+        (r'(?<!\\)\"(\\.|.)(?<!\\)\"',                      'STRING'),
+        (r'(?<!\\)\'(\\.|.)(?<!\\)\'',                      'CHAR'),
         (r"""
           (?<![A-Za-z0-9_])true(?![A-Za-z0-9_])|
           (?<![A-Za-z0-9_])false(?![A-Za-z0-9_])
@@ -79,8 +80,16 @@ if len(sys.argv) > 1:
         if Analyzer.is_error:
             print("compilation canceled due to previous error(s)")
         else:
-            generator.generate(Parser.get_output())
-            print("compilation completed with no error")
+            output = generator.generate(Parser.get_output())
+            fp = open("a.asm", "w")
+            fp.write(output)
+            fp.close()
+            subprocess.call(["nasm", "-felf64", "a.asm"])
+            subprocess.call(["ld", "a.o"])
+            #subprocess.call(["rm", "a.asm"])
+            subprocess.call(["rm", "a.o"])
+            print("compilation completed, output: a.out")
+
 else:
     code = input("@>")
     while code:
