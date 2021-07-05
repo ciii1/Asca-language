@@ -24,7 +24,7 @@ def generate(ast):
     state = generator_state()
     for tree in ast:
         if tree["context"] == "expression":
-            generate_expression(tree["content"], state, "rax") 
+            generate_expression(tree["content"], state) 
         elif tree["context"] == "variable_declaration":
             generate_variable_declaration(tree["content"], state)
     output = ""
@@ -47,20 +47,25 @@ def generate_variable_declaration(ast, state):
     else:
         state.text_section += "mov " + ast["size"].val + " [rsp], 0\n"
 
-def generate_expression(ast, state, res_register="rax"):
+def generate_expression(ast, state, res_register="rax", is_parsing_left=True):
     if type(ast) is list:
             if len(ast) == 2:
                 return generate_unary(ast, state)
             else:
-                return generate_infix(ast, state, res_register)
+                return generate_infix(ast, state, res_register, is_parsing_left)
     else:
         return generate_value(ast, state)
  
-def generate_infix(ast, state, res_register):
+def generate_infix(ast, state, res_register, is_parsing_left):
     global REGISTERS_LIST #python should rlly has global constant
     
-    right = generate_expression(ast[2], state, "r9")
-    left = generate_expression(ast[0], state, "r8")
+    if is_parsing_left:
+        left = generate_expression(ast[0], state, "r8", True)
+        right = generate_expression(ast[2], state, "r9", False)
+    else:
+        left = generate_expression(ast[0], state, "r10", True)
+        right = generate_expression(ast[2], state, "r9", False)
+
 
     #check if both variables are constant, if yes then do a constant fold
     if right.is_constant and left.is_constant:
