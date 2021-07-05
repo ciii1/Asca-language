@@ -48,25 +48,20 @@ def generate_variable_declaration(ast, state):
         state.text_section += "mov " + ast["size"].val + " [rsp], 0\n"
 
 def generate_expression(ast, state, res_register="rax", is_parsing_left=True):
-    if type(ast) is list:
-            if len(ast) == 2:
-                return generate_unary(ast, state)
-            else:
-                return generate_infix(ast, state, res_register, is_parsing_left)
+    if ast["context"] == "unary_expression":
+        return generate_unary(ast["content"], state)
+    elif ast["context"] == "infix_expression":
+        return generate_infix(ast["content"], state, res_register, is_parsing_left)
     else:
         return generate_value(ast, state)
  
-def generate_infix(ast, state, res_register, is_parsing_left):
-    global REGISTERS_LIST #python should rlly has global constant
-    
+def generate_infix(ast, state, res_register, is_parsing_left): 
     if is_parsing_left:
         left = generate_expression(ast[0], state, "r8", True)
         right = generate_expression(ast[2], state, "r9", False)
     else:
         left = generate_expression(ast[0], state, "r10", True)
         right = generate_expression(ast[2], state, "r9", False)
-
-
     #check if both variables are constant, if yes then do a constant fold
     if right.is_constant and left.is_constant:
         if ast[1].val == "+":
@@ -83,16 +78,16 @@ def generate_infix(ast, state, res_register, is_parsing_left):
             if right.val == "rax":
                 state.text_section += "mov rbx, rax \n"
                 right.val = "rbx"
-            state.text_section += "mov " + "rax" + ", " + left.val +"\n"
+            state.text_section += "mov " + convert_64bit_reg("rax", left.size) + ", " + left.val +"\n"
             left.val = "rax"
         if ast[1].val == "+":
-            state.text_section += "add " + left.val + ", " + right.val + "\n"
+            state.text_section += "add qword " + left.val + ", " + right.val + "\n"
             if left.val != res_register:
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
                 left.val = res_register
             return item(res_register, "INT", "qword", False, False)
         elif ast[1].val == "-":
-            state.text_section += "sub " + left.val + ", " + right.val + "\n"
+            state.text_section += "sub qword " + left.val + ", " + right.val + "\n"
             if left.val != res_register:
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
                 left.val = res_register
@@ -106,9 +101,9 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 left.val = "rax"
             if right.is_constant:
                 state.text_section += "mov rbx, " + right.val + "\n"
-                right.val == "rbx"
-            state.text_section += "mul " + right
-            if left.val != res_register:
+                right.val = "rbx"
+            state.text_section += "mul " + right.size + " " + right.val + "\n"
+            if left.val != res_register: 
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
                 left.val = res_register
             return item(res_register, "INT", "qword", False, False)
@@ -121,38 +116,47 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 left.val = "rax"
             if right.is_constant:
                 state.text_section += "mov rbx, " + right.val + "\n"
-                right.val == "rbx"
-            state.text_section += "div " + right
+                right.val = "rbx"
+            state.text_section += "mov rdx, 0\n"
+            state.text_section += "div " + right.size + " " + right.val + "\n"
             if left.val != res_register:
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
                 left.val = res_register
             return item(res_register, "INT", "qword", False, False)
 
 def generate_unary(ast, state):
-    operand = generate_expression(ast[1], state)
-    if ast[0] == "-" or ast[0] == "+":
-        if operand != "rax":
-            state.text_section += "mov rax, " + operand.token + "\n"
-        state.text_section += "neg rax, " + operand.token + "\n"
-        return "rax"
-    elif ast[0] == "$":
-        return "["+operand.token+"]"
-    elif ast[0] == "@":
-        return operand.token
+    if ast[0].val == "-" or ast[0].val == "+":
+        operand = generate_expression(ast[1], state)
+        if operand.is_constant or operand.in_memory:
+            state.text_section += "mov r13, " + operand.val + "\n"
+            operand.val = "r13"
+        state.text_section += "neg " + operand.val + "\n"
+        return item(operand.val, "INT", "qword", False, False)
+    elif ast[0].val == "$":
+        operand = generate_expression(ast[2], state)
+        if operand.is_constant or operand.in_memory:
+            state.text_section += "mov r13, " + operand.val + "\n"
+            operand.val = "r13"
+        return item("["+operand.val+"]", "INT", ast[1].val, False, True)
+    elif ast[0].val == "@":
+        operand = generate_expression(ast[1], state)
+        if operand.in_memory:
+            state.text_section += "lea r13, " + operand.val + "\n"
+            operand.val = "r13"           
+        return item(operand.val, "INT", "qword", True, False) 
 
 def generate_value(ast, state):
-    if type(ast) is dict:
-        if ast["type"] == "identifier":
-            return generate_variable(ast, state)
-        elif ast["type"] == "function_call":
-            #NOT IMPLEMENTED
-            pass
-    else:
-        if ast.tag == "STRING":
-            ast.val = state.add_data(ast.val, "db")
-            return item(ast.val, ast.tag, "byte", False, True)
+    if ast["context"] == "identifier":
+        return generate_variable(ast, state)
+    elif ast["context"] == "function_call":
+        #NOT IMPLEMENTED
+        pass
+    elif ast["context"] == "constant":
+        if ast["value"].tag == "STRING":
+            ast["value"].val = state.add_data(ast["value"].val, "db")
+            return item(ast["value"].val, ast["value"].tag, "byte", False, True)
         else:
-            return item(ast.val, ast.tag, "qword", True, False)
+            return item(ast["value"].val, ast["value"].tag, "qword", True, False)
 
 def generate_variable(ast, state):
     pos = state.stack_position - state.variable_list[ast["value"].val]["position"]

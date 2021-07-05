@@ -130,11 +130,11 @@ def analyze_while(ast, state):
     return state
 
 def analyze_for(ast, state):
-    if analyze([ast["setup"]], state) is None:
+    if analyze([ast["setup"]], state).is_error:
         return None
-    if analyze([ast["condition"]], state) is None:
+    if analyze([ast["condition"]], state).is_error:
         return None
-    if analyze([ast["increment"]], state) is None:
+    if analyze([ast["increment"]], state).is_error:
         return None
     local = copy.deepcopy(state)
     local.is_in_loop = True
@@ -166,8 +166,8 @@ def analyze_return(ast, state):
        res.type != state.parent_function["type"]:
         throw_error("return value mismatched with the function type", ast["keyword"])
         return None
-    return res.type
-    
+    return res
+
 def analyze_type_declaration(ast, state):
     is_exist = state.type_list.get(ast["id"].val)
     if is_exist:
@@ -207,12 +207,12 @@ def analyze_variable_declaration(ast, state):
         return None
     return state
 
+
 def analyze_expression(ast, state):
-    if type(ast) is list:
-            if len(ast) == 2:
-                return analyze_unary(ast, state)
-            else:
-                return analyze_infix(ast, state)
+    if ast["context"] == "unary_expression":
+        return analyze_unary(ast["content"], state)
+    elif ast["context"] == "infix_expression":
+        return analyze_infix(ast["content"], state)
     else:
         return analyze_value(ast, state)
 
@@ -251,22 +251,28 @@ def analyze_infix(ast, state):
 
 def analyze_unary(ast, state):
     operator = ast[0]
-    operand = analyze_expression(ast[1], state)
-    if operand is None:
-        return None
     if operator.val == "-" or\
        operator.val == "+":
+        operand = analyze_expression(ast[1], state)
+        if operand is None:
+            return None
         if is_literal(operand) or\
            operand.type == "LIT" or\
            operand.is_in_memory:
             return operand
     elif operator.val == "@":
+        operand = analyze_expression(ast[1], state)
+        if operand is None:
+            return None
         if operand.is_array or\
            operand.is_in_memory:
             operand.type = "INT" #@ is just an operator that lookup the memory address of a value, it'll return an int ofc
             operand.is_array = False
             return operand
     elif operator.val == "$":
+        operand = analyze_expression(ast[2], state)
+        if operand is None:
+            return None
         if not operand.is_array:
             operand.type = "LIT"
             operand.is_in_memory = True
@@ -276,16 +282,15 @@ def analyze_unary(ast, state):
     return None
 
 def analyze_value(ast, state):
-    if type(ast) is dict:
-        if ast["type"] == "identifier":
-            return analyze_identifier(ast, state)
-        elif ast["type"] == "function_call":
-            return analyze_function_call(ast, state)
-    else:
-        if ast.tag == "STRING":
-            return item(ast, ast.tag, True, True)
+    if ast["context"] == "identifier":
+        return analyze_identifier(ast, state)
+    elif ast["context"] == "function_call":
+        return analyze_function_call(ast, state)
+    elif ast["context"] == "constant":
+        if ast["value"].tag == "STRING":
+            return item(ast["value"], ast["value"].tag, True, True)
         else:
-            return item(ast, ast.tag, False, False)
+            return item(ast["value"], ast["value"].tag, False, False)
 
 def analyze_identifier(ast, state):
     res = state.is_variable_exist(ast["value"])
@@ -296,7 +301,6 @@ def analyze_identifier(ast, state):
         return item(ast["value"], res["type"], False, True)
     else:
         return item(ast["value"], res["type"], True, True)
-
 
 def analyze_function_call(ast, state):
     res = state.function_list.get(ast["value"].val)

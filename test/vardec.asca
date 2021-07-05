@@ -1,5 +1,9 @@
 type int;
 type char;
 
-dword hi : int;
-byte hello : char = 'a';
+qword x : int = 5;
+qword y : int = 3;
+qword z : int = 1;
+
+((x*y)*(y*z))/((y*z)*(z*y));
+

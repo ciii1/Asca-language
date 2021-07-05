@@ -3,6 +3,7 @@ import sys
 
 #TODO
 #fix error recovery. ITS A CHAOS RN
+#REFACTOR THE CODE, especially state = res lol and res.get_output(), i just notice that python is pass by reference, unlike C.
 class parser_state():
     def __init__ (self, tokens, pos=0):
         self.tokens = tokens
@@ -134,7 +135,6 @@ def parse_body(state):
         state = res
         output.append(res.get_output())
         state.inc_position()
-
     state.set_output(output)
     return state
 
@@ -551,12 +551,12 @@ def parse_variable_declaration(state):
         state.set_output(output)
         return state
 
-def parse_expression(state):
+def parse_expression(state): 
     output = {
         "context": "expression",
         "content": None
     }
-    res = parse_expression_recursive(state)
+    res = parse_infix(state)
     if res is not None:
         state = res
         output['content'] = state.get_output()
@@ -566,10 +566,15 @@ def parse_expression(state):
         return None
 
 #use pratt parsing because it's cool
-def parse_expression_recursive(state, rbp = 0):
+def parse_infix(state, rbp = 0):
+    output = {
+        "context": "infix_expression",
+        "content": None
+    }
+
     if state.get_token().val == "(":
         state.inc_position()
-        res = parse_expression_recursive(state)
+        res = parse_infix(state)
         if res is None:
             return None
         res.inc_position()
@@ -595,20 +600,23 @@ def parse_expression_recursive(state, rbp = 0):
         operator = state.get_token().val
         if get_priority(operator) is None:
             state.dec_position()
-            state.set_output(left)
+            output["content"] = left
+            state.set_output(output)
             return state
 
         state.inc_position()
         if get_associativity(operator) == "left":
-            res = parse_expression_recursive(state, get_priority(operator))
+            res = parse_infix(state, get_priority(operator))
         else:
-            res = parse_expression_recursive(state, get_priority(operator) - 1)
+            res = parse_infix(state, get_priority(operator) - 1)
         if res is None:
             return None
         state = res
         left = [left, operator_token, res.get_output()]
 
-    state.set_output(left)
+    output["content"] = left
+    state.set_output(output)
+    print(output)
     return state
 
 def get_priority(token):
@@ -662,19 +670,24 @@ def get_associativity(token):
         return "right"
 
 def parse_unary(state):
-    output = []
+    output = {
+            "context":"unary_expression",
+            "content":[]
+    }
+
     if state.get_token().val == "@" or\
        state.get_token().val == "-" or\
        state.get_token().val == "+":
-        output.append(state.get_token())
+        output["content"].append(state.get_token())
     elif state.get_token().val == "$":
-        output.append(state.get_token())
+        output["content"].append(state.get_token())
         state.inc_position()
         if state.get_token().val != "(":
             return None
         state.inc_position()
         if state.get_token().tag != "SIZE":
             return None
+        output["content"].append(state.get_token())
         state.inc_position()
         if state.get_token().val != ")":
             return None
@@ -690,7 +703,7 @@ def parse_unary(state):
             if res is None:
                 return None
     state = res
-    output.append(res.get_output()) 
+    output["content"].append(res.get_output()) 
 
     state.set_output(output)
     return state
@@ -711,14 +724,14 @@ def parse_value(state):
          token_type == "BOOL" or\
          token_type == "STRING" or\
          token_type == "CHAR":
-        state.set_output(value)
+        state.set_output({"context":"constant", "value":value})
         return state
     else:
         return None
 
 def parse_identifier(state):
     output = {
-            "type": "identifier",
+            "context": "identifier",
             "value":None,
             "array-value": None,
         }
@@ -752,7 +765,7 @@ def parse_identifier(state):
 
 def parse_function_call(state):
     output = {
-        "type": "function_call",
+        "context": "function_call",
         "value": None,
         "parameters": []
     }
