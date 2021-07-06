@@ -567,11 +567,6 @@ def parse_expression(state):
 
 #use pratt parsing because it's cool
 def parse_infix(state, rbp = 0):
-    output = {
-        "context": "infix_expression",
-        "content": None
-    }
-
     if state.get_token().val == "(":
         state.inc_position()
         res = parse_infix(state)
@@ -593,17 +588,15 @@ def parse_infix(state, rbp = 0):
     if get_priority(operator) is None:
         state.set_output(left)
         return state
-
+    
     while get_priority(operator) > rbp:
         state.inc_position()
         operator_token = state.get_token()
         operator = state.get_token().val
         if get_priority(operator) is None:
             state.dec_position()
-            output["content"] = left
-            state.set_output(output)
+            state.set_output(left)
             return state
-
         state.inc_position()
         if get_associativity(operator) == "left":
             res = parse_infix(state, get_priority(operator))
@@ -612,12 +605,10 @@ def parse_infix(state, rbp = 0):
         if res is None:
             return None
         state = res
-        left = [left, operator_token, res.get_output()]
-
-    output["content"] = left
-    state.set_output(output)
-    print(output)
+        left = {"context":"infix_expression", "content":[left, operator_token, res.get_output()]}
+    state.set_output(left)
     return state
+
 
 def get_priority(token):
     if token == "=" or\

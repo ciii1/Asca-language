@@ -6,6 +6,7 @@ class generator_state():
         self.text_section = ""
         self.data_section = ""
         self.data_count = 0
+        self.label_count = 0
 
     def add_data(self, value, size="db"):
         self.data_section += "_DATA" + self.data_count + " " + size + " " +  value
@@ -28,7 +29,7 @@ def generate(ast):
         elif tree["context"] == "variable_declaration":
             generate_variable_declaration(tree["content"], state)
     output = ""
-    if state.data_section != None:
+    if len(state.data_section) > 0:
         output += "section .data\n\n"
         output += state.data_section
     output += "section .text\n"
@@ -64,15 +65,32 @@ def generate_infix(ast, state, res_register, is_parsing_left):
         right = generate_expression(ast[2], state, "r9", False)
     #check if both variables are constant, if yes then do a constant fold
     if right.is_constant and left.is_constant:
+        left_val = int(left.val)
+        right_val = int(right.val)
         if ast[1].val == "+":
-            return item(str(to_int(left) + to_int(right)), "INT", "qword", True, False)
+            return item(str(left_val + right_val), "INT", "qword", True, False)
         elif ast[1].val == "-":
-            return item(str(to_int(left) - to_int(right)), "INT", "qword", True, False)
+            return item(str(left_val - right_val), "INT", "qword", True, False)
         elif ast[1].val == "*":
-            return item(str(to_int(left) * to_int(right)), "INT", "qword", True, False)
+            return item(str(left_val * right_val), "INT", "qword", True, False)
         elif ast[1].val == "/":
-            return item(str(to_int(left) / to_int(right)), "INT", "qword", True, False)
-        return item
+            return item(str(left_val / right_val), "INT", "qword", True, False)
+        elif ast[1].val == ">":
+            return item(str(int(left_val > right_val)), "INT", "qword", True, False)
+        elif ast[1].val == "<":
+            return item(str(int(left_val < right_val)), "INT", "qword", True, False)
+        elif ast[1].val == ">=":
+            return item(str(int(left_val >= right_val)), "INT", "qword", True, False)
+        elif ast[1].val == "<=":
+            return item(str(int(left_val <= right_val)), "INT", "qword", True, False)
+        elif ast[1].val == "==":
+            return item(str(int(left_val == right_val)), "INT", "qword", True, False)
+        elif ast[1].val == "!=":
+            return item(str(int(left_val != right_val)), "INT", "qword", True, False)
+        elif ast[1].val == "||":
+            return item(str(left_val or right_val), "INT", "qword", True, False)
+        elif ast[1].val == "&&":
+            return item(str(left_val and right_val), "INT", "qword", True, False)
     else:
         if left.is_constant or left.in_memory:
             if right.val == "rax":
@@ -123,6 +141,86 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
                 left.val = res_register
             return item(res_register, "INT", "qword", False, False)
+        elif ast[1].val == "<":
+            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            state.text_section += "mov rbx, 1\n"
+            state.text_section += "mov " + left.val  + ", 0\n"
+            state.text_section += "cmovl " + left.val + ", rbx \n"
+            if left.val != res_register:
+                state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                left.val = res_register
+            return item(res_register, "INT", "qword", False, False)
+        elif ast[1].val == "<=":
+            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            state.text_section += "mov rbx, 1\n"
+            state.text_section += "mov " + left.val  + ", 0\n"
+            state.text_section += "cmovle " + left.val + ", rbx \n"
+            if left.val != res_register:
+                state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                left.val = res_register
+            return item(res_register, "INT", "qword", False, False)
+        elif ast[1].val == ">":
+            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            state.text_section += "mov rbx, 1\n"
+            state.text_section += "mov " + left.val  + ", 0\n"
+            state.text_section += "cmovg " + left.val + ", rbx \n"
+            if left.val != res_register:
+                state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                left.val = res_register
+            return item(res_register, "INT", "qword", False, False)
+        elif ast[1].val == ">=":
+            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            state.text_section += "mov rbx, 1\n"
+            state.text_section += "mov " + left.val  + ", 0\n"
+            state.text_section += "cmovge " + left.val + ", rbx \n"
+            if left.val != res_register:
+                state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                left.val = res_register
+            return item(res_register, "INT", "qword", False, False)
+        elif ast[1].val == "==":
+            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            state.text_section += "mov rbx, 1\n"
+            state.text_section += "mov " + left.val  + ", 0\n"
+            state.text_section += "cmove " + left.val + ", rbx \n"
+            if left.val != res_register:
+                state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                left.val = res_register
+            return item(res_register, "INT", "qword", False, False)
+        elif ast[1].val == "!=":
+            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            state.text_section += "mov rbx, 1\n"
+            state.text_section += "mov " + left.val  + ", 0\n"
+            state.text_section += "cmovne " + left.val + ", rbx \n"
+            if left.val != res_register:
+                state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                left.val = res_register
+            return item(res_register, "INT", "qword", False, False)
+            state.text_section += "cmp " + left.val + ", 0\n"
+            state.text_section += "mov rbx, " + right.val + "\n"
+            state.text_section += "mov rax, 0\n"
+            if left.val != res_register:
+                state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                left.val = res_register
+        elif ast[1].val == "||":
+            if right.is_constant:
+                state.text_section += "mov rbx, " + right.val + "\n"
+                right.val = "rbx"
+            state.text_section += "cmp " + right.val + ", 0\n"
+            state.text_section += "cmovne " + left.val + ", " + right.val + " \n"
+            if left.val != res_register:
+                state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                left.val = res_register
+            return item(res_register, "INT", "qword", False, False)
+        elif ast[1].val == "&&":
+            if right.is_constant:
+                state.text_section += "mov rbx, " + right.val + "\n"
+                right.val = "rbx"
+            state.text_section += "cmp " + right.val + ", 0\n"
+            state.text_section += "cmove " + left.val + ", " + right.val + " \n"
+            if left.val != res_register:
+                state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                left.val = res_register
+            return item(res_register, "INT", "qword", False, False)
 
 def generate_unary(ast, state):
     if ast[0].val == "-" or ast[0].val == "+":
@@ -156,20 +254,29 @@ def generate_value(ast, state):
             ast["value"].val = state.add_data(ast["value"].val, "db")
             return item(ast["value"].val, ast["value"].tag, "byte", False, True)
         else:
-            return item(ast["value"].val, ast["value"].tag, "qword", True, False)
+            return to_int(item(ast["value"].val, ast["value"].tag, "qword", True, False))
 
 def generate_variable(ast, state):
     pos = state.stack_position - state.variable_list[ast["value"].val]["position"]
     return item("[rsp+"+str(pos)+"]", "INT", state.variable_list[ast["value"].val]["size"], False, True)
 
 def to_int(token):
+    val = 0
     if token.type == "CHAR":
-        return ord(token.val)
+        val = ord(token.val)
     elif token.type == "INT":
-        return int(token.val)
+        val = int(token.val)
     elif token.type == "FLOAT":
         #TODO:ADD FLOAT SUPPORT
-        return int(token.val)
+        val = int(token.val)
+    elif token.type == "BOOL":
+        if token.val == "true":
+            val = 1
+        elif token.val == "false":
+            val = 0
+    token.val = str(val)
+    token.tag = "INT"
+    return token
 
 def convert_64bit_reg(reg, size):
     reg_list = {

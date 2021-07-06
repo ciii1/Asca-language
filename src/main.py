@@ -53,10 +53,7 @@ def init_tokens(input):
         (r'[0-9]+\.[0-9]+',                                 'FLOAT'),
         (r'(?<!\\)\"(.*?)(?<!\\)\"',                        'STRING'),
         (r'(?<!\\)\'(\\.|.)(?<!\\)\'',                      'CHAR'),
-        (r"""
-          (?<![A-Za-z0-9_])true(?![A-Za-z0-9_])|
-          (?<![A-Za-z0-9_])false(?![A-Za-z0-9_])
-          """,                                               'BOOL'),
+        (r"(?<![A-Za-z0-9_])true(?![A-Za-z0-9_])|(?<![A-Za-z0-9_])false(?![A-Za-z0-9_])",   'BOOL'),
         (r'(?<![A-Za-z0-9_])qword(?![A-Za-z0-9_])',          'SIZE'),
         (r'(?<![A-Za-z0-9_])dword(?![A-Za-z0-9_])',          'SIZE'),
         (r'(?<![A-Za-z0-9_])word(?![A-Za-z0-9_])',           'SIZE'),

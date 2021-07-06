@@ -1,9 +1,10 @@
 type int;
 type char;
 
-qword x : int = 5;
-qword y : int = 3;
-qword z : int = 1;
+byte x : int = 5;
+dword y : int = 5;
+qword z : int = 2;
 
-((x*y)*(y*z))/((y*z)*(z*y));
+//((x*y)*(y*z))/((y*z)*(z*y));
+(x==y || x==z);
 
