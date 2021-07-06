@@ -61,7 +61,7 @@ def generate_infix(ast, state, res_register, is_parsing_left):
         left = generate_expression(ast[0], state, "r8", True)
         right = generate_expression(ast[2], state, "r9", False)
     else:
-        left = generate_expression(ast[0], state, "r10", True)
+        left = generate_expression(ast[0], state, "r11", True)
         right = generate_expression(ast[2], state, "r9", False)
     #check if both variables are constant, if yes then do a constant fold
     if right.is_constant and left.is_constant:
@@ -99,13 +99,13 @@ def generate_infix(ast, state, res_register, is_parsing_left):
             state.text_section += "mov " + convert_64bit_reg("rax", left.size) + ", " + left.val +"\n"
             left.val = "rax"
         if ast[1].val == "+":
-            state.text_section += "add qword " + left.val + ", " + right.val + "\n"
+            state.text_section += "add " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
             if left.val != res_register:
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
                 left.val = res_register
             return item(res_register, "INT", "qword", False, False)
         elif ast[1].val == "-":
-            state.text_section += "sub qword " + left.val + ", " + right.val + "\n"
+            state.text_section += "sub " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
             if left.val != res_register:
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
                 left.val = res_register
@@ -115,10 +115,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 if right.val == "rax":
                     state.text_section += "mov r10, rax \n"
                     right.val = "r10"
-                state.text_section += "mov rax, " + left.val + "\n"
+                state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + left.val + "\n"
                 left.val = "rax"
             if right.is_constant:
-                state.text_section += "mov rbx, " + right.val + "\n"
+                state.text_section += "mov " + convert_64bit_reg("rbx", right.size) + ", " + right.val + "\n"
                 right.val = "rbx"
             state.text_section += "mul " + right.size + " " + right.val + "\n"
             if left.val != res_register: 
@@ -130,10 +130,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 if right.val == "rax":
                     state.text_section += "mov r10, rax \n"
                     right.val = "r10"
-                state.text_section += "mov rax, " + left.val + "\n"
+                state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + left.val + "\n"
                 left.val = "rax"
             if right.is_constant:
-                state.text_section += "mov rbx, " + right.val + "\n"
+                state.text_section += "mov " + convert_64bit_reg("rbx", right.size) + ", " + right.val + "\n"
                 right.val = "rbx"
             state.text_section += "mov rdx, 0\n"
             state.text_section += "div " + right.size + " " + right.val + "\n"

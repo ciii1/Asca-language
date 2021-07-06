@@ -584,28 +584,24 @@ def parse_infix(state, rbp = 0):
     state = res
     left = res.get_output()
 
-    operator = state.peek_next_token().val
-    if get_priority(operator) is None:
+    operator = state.peek_next_token()
+    if get_priority(operator.val) is None:
         state.set_output(left)
         return state
-    
-    while get_priority(operator) > rbp:
-        state.inc_position()
-        operator_token = state.get_token()
-        operator = state.get_token().val
-        if get_priority(operator) is None:
-            state.dec_position()
-            state.set_output(left)
-            return state
-        state.inc_position()
-        if get_associativity(operator) == "left":
-            res = parse_infix(state, get_priority(operator))
+    while get_priority(operator.val) > rbp:
+        state.inc_position(2)
+        if get_associativity(operator.val) == "left":
+            res = parse_infix(state, get_priority(operator.val))
         else:
-            res = parse_infix(state, get_priority(operator) - 1)
+            res = parse_infix(state, get_priority(operator.val) - 1)
         if res is None:
             return None
         state = res
-        left = {"context":"infix_expression", "content":[left, operator_token, res.get_output()]}
+        left = {"context":"infix_expression", "content":[left, operator, res.get_output()]}
+        operator = state.peek_next_token()
+        if get_priority(operator.val) is None:
+            state.set_output(left)
+            return state
     state.set_output(left)
     return state
 
