@@ -1,3 +1,4 @@
+
 Asca:
 
 Asca is a language that aims to be safe, consistant, simple, yet powerful.
