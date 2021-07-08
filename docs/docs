@@ -126,6 +126,6 @@ func add(qword a:int, qword b:int):int {
 }
 ```
 
-Need to be remembered that Asca parameters are pass by value, like C
+Note that Asca parameters are pass by value, like C
 and not pass by reference like python and php.
 
