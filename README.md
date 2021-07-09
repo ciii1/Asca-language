@@ -1,5 +1,6 @@
 # Asca
-Asca is a language that aims to be as close as possible to the assembly language, without removing the useful high level abstractions from high level languages.
+Asca is a language that aims to remove all the unnecesary high level abstractions
+to let you gain more control of your program.
 It is compiled to nasm assembly
 
 # Documentation
