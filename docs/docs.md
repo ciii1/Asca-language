@@ -1,16 +1,18 @@
-Asca:
 
-Asca is a language that aims to be safe, consistant, simple, yet powerful.
+# About
 
-A.VARIABLES
+Asca is a language that aims to remove all the unnecesary high level abstractions
+to let you gain control of your program.
+
+# Variables
 
 In asca, a size of a variable does not depedend on it's type,
 rather you specify it manually everytime you declare a variable.
 the size keywords are:
-qword: 8 bytes
-dword: 4 bytes
-word: 2 bytes
-byte: 1 byte
+qword: 8 bytes,
+dword: 4 bytes,
+word: 2 bytes,
+byte: 1 byte,
 
 for example:
 
@@ -41,9 +43,9 @@ You see? the main "function" of an ascs program is the part where you declare
 global variables in a C program. This make asca doesn't have a global variable, because
 there is no room to declare one.
 
-Also, all variables would be stored onto the stack, wether it's an array or a string.
+Also, all variables are stored in the stack.
 
-B.ARRAYS
+# Arrays
 
 The syntax to declare an array is:
 ```
@@ -70,7 +72,7 @@ this means you can't do:
 dword[a] b:int;
 ```
 
-C.POINTERS
+# Pointers
 
 In asca, pointers are just numbers that holds the address of a memory.
 Nothing special with it.
@@ -101,23 +103,30 @@ a = $(byte)@b;
 ```
 this will assign the value of b to a.
 
-D.STRINGS
+# Strings
 
-unlike variables, in Asca, literal strings are stored into the .data section. And since it
+string literals are stored into the .data section. And since it's
 considered as an array, you can't assign it directly into a variable.
-instead of doing this:
+Doing this will give you an error:
 ```
 byte[5] a:char = "hello";
 ```
-You should assign a pointer that points to the literal string "hello":
+You should assign a pointer that points to the string literal "hello":
 ```
 qword a:ptr = @"hello";
 ```
-this (for me at least) give you a more consistency.
-Unlike in C, variables are not clear, wether it's stored in .data section or in the stack,
-butin Asca, every variables is stored on the stack.
+this (for me at least) gives you more consistency than C where variables are not clear wether it's stored in .data section or in the stack,
+but in Asca, every variables is stored on the stack.
 
-E.FUNCTIONS
+# Loops
+there are two types of loop in asca: while and for loop.
+their syntax is the same with C loops' syntax.
+
+# If, elif, else.
+the syntax of if, elif and else is the same with
+C. Just that the "else if" is replaced with "elif"
+
+# Functions
 
 In asca you can declare functions with the 'func' keyword.
 ```
@@ -126,6 +135,6 @@ func add(qword a:int, qword b:int):int {
 }
 ```
 
-Need to be remembered that Asca parameters are pass by value, like C
+Note that Asca parameters are pass by value, like C
 and not pass by reference like python and php.
 
