@@ -39,9 +39,14 @@ def generate(ast):
     return output
 
 def generate_variable_declaration(ast, state):
-    state.stack_position += size_to_number(ast["size"].val)
+    size = size_to_number(ast["size"].val)
+    if ast["array-size"] is not None:
+        size *= int(ast["array-size"].val)
+
+    state.stack_position += size
     state.variable_list[ast["id"].val] = {"size":ast["size"].val, "position":state.stack_position}
-    state.text_section += "sub rsp, " + str(size_to_number(ast["size"].val)) + "\n"
+    state.text_section += "sub rsp, " + str(size) + "\n"
+        
     if ast["init"] is not None:
         init = generate_expression(ast["init"]["content"], state)
         state.text_section += "mov " + ast["size"].val + " [rsp], " + init.val + "\n"
@@ -268,7 +273,17 @@ def generate_value(ast, state):
 
 def generate_variable(ast, state):
     pos = state.stack_position - state.variable_list[ast["value"].val]["position"]
-    return item("[rsp+"+str(pos)+"]", "INT", state.variable_list[ast["value"].val]["size"], False, True)
+    if ast["array-value"] is not None:
+        array_val = generate_expression(ast["array-value"]["content"], state)
+        if array_val.is_constant:
+            pos += int(array_val.val) * size_to_number(state.variable_list[ast["value"].val]["size"])
+        else:
+            if array_val.in_memory:
+                state.text_section += "mov " + convert_64bit_reg("rbx", array_val.size) + ", " + array_val.val + "\n"
+                array_val.val = "rbx"
+            pos = array_val.val + " * " + str(size_to_number(state.variable_list[ast["value"].val]["size"])) + " + " + str(pos)
+
+    return item("[rsp + "+str(pos)+"]", "INT", state.variable_list[ast["value"].val]["size"], False, True)
 
 def to_int(token):
     val = 0
