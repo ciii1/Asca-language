@@ -45,8 +45,6 @@ def generate_variable_declaration(ast, state):
     if ast["init"] is not None:
         init = generate_expression(ast["init"]["content"], state)
         state.text_section += "mov " + ast["size"].val + " [rsp], " + init.val + "\n"
-    else:
-        state.text_section += "mov " + ast["size"].val + " [rsp], 0\n"
 
 def generate_expression(ast, state, res_register="rax", is_parsing_left=True):
     if ast["context"] == "unary_expression":
@@ -92,8 +90,7 @@ def generate_infix(ast, state, res_register, is_parsing_left):
         elif ast[1].val == "&&":
             return item(str(left_val and right_val), "INT", "qword", True, False)
     else:
-        if ast[1].tag != "ASSIGNMENT_OPERATOR":
-            if left.is_constant or left.in_memory:
+        if ast[1].tag != "ASSIGNMENT_OPERATOR" and (left.is_constant or left.in_memory):
                 if right.val == "rax":
                     state.text_section += "mov rbx, rax \n"
                     right.val = "rbx"
@@ -217,9 +214,22 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 left.val = res_register
             return item(res_register, "INT", left.size, False, False)
         elif ast[1].val == "=":
-            if not right.is_constant:
-                right.val = convert_64bit_reg(right.val, left.size)
-            state.text_section += "mov " + left.size + " "+ left.val +", " + right.val + "\n"
+            if right.in_memory:
+                state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
+                right.val = "rbx"
+            state.text_section += "mov " + left.size + " " + left.val + ", " + right.val + "\n"
+            return item(left.val, "INT", left.size, False, True) 
+        elif ast[1].val == "+=":
+            if right.in_memory:
+                state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
+                right.val = "rbx"
+            state.text_section += "add " + left.size + " " + left.val + ", " + right.val + "\n"
+            return item(left.val, "INT", left.size, False, True) 
+        elif ast[1].val == "-=":
+            if right.in_memory:
+                state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
+                right.val = "rbx"
+            state.text_section += "sub " + left.size + " " + left.val + ", " + right.val + "\n"
             return item(left.val, "INT", left.size, False, True) 
 
 def generate_unary(ast, state):
