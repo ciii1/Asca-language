@@ -605,7 +605,6 @@ def parse_infix(state, rbp = 0):
     state.set_output(left)
     return state
 
-
 def get_priority(token):
     if token == "=" or\
          token == "+=" or\
