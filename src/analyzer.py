@@ -303,7 +303,7 @@ def analyze_identifier(ast, state):
     if res is None:
         throw_error("undeclared variable: %s" % ast["value"].val, ast["value"])
         return None
-    if res["array-size"] is None:
+    if res["array-size"] is None or ast["array-value"] is not None:
         return item(ast["value"], res["type"], False, True)
     else:
         return item(ast["value"], res["type"], True, True)
