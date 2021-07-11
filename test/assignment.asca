@@ -2,8 +2,5 @@ type int;
 
 qword a:int;
 qword b:int;
-a=32;
-//now lets get funky
-a=b=a=2+2;
-a=(2-(a=3))-2;
-a=(2*(a=3*3))-2+(a=2);
+
+a += 1+2+(a-=5);
