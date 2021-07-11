@@ -34,8 +34,6 @@ def init_tokens(input):
         (r'=',                                              'ASSIGNMENT_OPERATOR'),
         (r'\+=',                                            'ASSIGNMENT_OPERATOR'),
         (r'\-=',                                            'ASSIGNMENT_OPERATOR'),
-        (r'\/=',                                            'ASSIGNMENT_OPERATOR'),
-        (r'\*=',                                            'ASSIGNMENT_OPERATOR'),
         (r'\+',                                             'ARITHMETICAL_OPERATOR'),
         (r'-',                                              'ARITHMETICAL_OPERATOR'),
         (r'\*',                                             'ARITHMETICAL_OPERATOR'),
