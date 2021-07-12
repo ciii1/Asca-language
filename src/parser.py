@@ -129,7 +129,7 @@ def catch_not_match(state):
         else:
             throw_parse_error("unexpected token: %s " % state.get_token().val, state)
     else:
-        sys.stderr.write("syntax_error: unexpected EOF\n")
+        throw_eof_error(state)
 
 def parse_type_declaration(state):
     output = {
@@ -369,15 +369,15 @@ def parse_if(state):
     if state.get_token().val != "}":
         return None
 
-    state.inc_position()
-    if state.get_token().val == "elif":
+    if state.peek_next_token().val == "elif":
+        state.inc_position()
         res = parse_elif(state)
         if res is None:
             return None
         output["content"]["elif"] = res
-        state.inc_position()
     
-    if state.get_token().val == "else":
+    if state.peek_next_token().val == "else":
+        state.inc_position()
         res = parse_else(state)
         if res is None:
             return None
@@ -763,3 +763,7 @@ def throw_parse_error(msg, state):
 def throw_semicolon_error(state):
     sys.stderr.write("syntax_error: expected a semicolon at line %s: %s \n" % (state.get_token().line, state.get_token().char+len(state.get_token().val)))
     state.is_error = True    
+
+def throw_eof_error(state):
+    sys.stderr.write("syntax_error: unexpected EOF\n")
+    state.is_error = True
