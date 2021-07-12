@@ -11,9 +11,8 @@ func get_move(qword x:move) : ptr {
 		return @"sit";
 	} elif (x == 3) {
 		return @"run";
-	} else {
-		return @"unknown";
-	}	
+	}
+	return @"unknown";	
 }
 
 func get_person(qword x:person) : ptr {
@@ -23,12 +22,11 @@ func get_person(qword x:person) : ptr {
 		return @"you";
 	} elif (x == 2) {
 		return @"he";
-	} else {
-		return @"unknown";
 	}
+	return @"unknown";
 }
 byte y:person = 1;
 byte x:move = 2;
-print(get_person(y));
-print(get_move(x));
+#print(get_person(y));
+#print(get_move(x));
 
