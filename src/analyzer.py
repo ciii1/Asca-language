@@ -13,6 +13,7 @@ class analyzer_state():
         self.is_error = False
         self.is_in_loop = False
         self.parent_function = None
+        self.has_return_value = False
 
 class item():
     def __init__(self, token, dtype, is_array, is_in_memory):
@@ -21,9 +22,7 @@ class item():
         self.is_array = is_array
         self.is_in_memory = is_in_memory  
         
-def analyze(ast, state = None):
-    if state is None:
-        state = analyzer_state()
+def analyze(ast, state = analyzer_state()):
     for tree in ast:
         if tree["context"] == "expression":
             res = analyze_expression(tree["content"], state)
@@ -87,6 +86,9 @@ def analyze_function_declaration(ast, state):
                 return None
         state.function_list[ast["id"].val] = {"parameters":copy.deepcopy(res.variable_list), "type":ast["type"].val}
     if analyze(ast["body"], local).is_error:
+        return None
+    if not local.has_return_value:
+        throw_error("a function must has a return value" , ast["id"])
         return None
     return state
 
@@ -159,6 +161,7 @@ def analyze_return(ast, state):
        res.type != state.parent_function["type"]:
         throw_error("return value mismatched with the function type", ast["keyword"])
         return None
+    state.has_return_value = True
     return res
 
 def analyze_type_declaration(ast, state):
