@@ -1,13 +1,16 @@
+import copy
 
 class generator_state():
-    def __init__(self):
+    def __init__(self, function_list):
         self.stack_position = 0;
+        self.base_stack_position = 0; #stores the stack position before we're entering a function
         self.variable_list = {} #this one stores variables positions
         self.text_section = ""
         self.data_section = ""
+        self.subroutine_section = ""
         self.data_count = 0
         self.label_count = 0
-
+        self.function_list = function_list
     def add_data(self, value, size="db"):
         self.data_section += "_DATA" + self.data_count + " " + size + " " +  value
         self.data_count += 1
@@ -21,19 +24,25 @@ class item():
         self.in_memory = in_memory
         self.is_constant = is_constant
 
-def generate(ast):
-    state = generator_state()
+def generate(ast, function_list = None, state = None):
+    if state is None:
+        state = generator_state(function_list)
     for tree in ast:
         if tree["context"] == "expression":
             generate_expression(tree["content"], state) 
         elif tree["context"] == "variable_declaration":
             generate_variable_declaration(tree["content"], state)
+        elif tree["context"] == "function_declaration":
+            generate_function_declaration(tree["content"], state)
+        elif tree["context"] == "return":
+            generate_return(tree["content"], state)
     output = ""
     if len(state.data_section) > 0:
         output += "section .data\n\n"
         output += state.data_section
     output += "section .text\n"
     output += "\tglobal _start\n"
+    output += state.subroutine_section
     output += "_start:\n"
     output += state.text_section
     return output
@@ -50,6 +59,29 @@ def generate_variable_declaration(ast, state):
     if ast["init"] is not None:
         init = generate_expression(ast["init"]["content"], state)
         state.text_section += "mov " + ast["size"].val + " [rsp], " + init.val + "\n"
+
+def generate_function_declaration(ast, state):
+    state.subroutine_section += "_" + ast["id"].val + ":\n"
+    local = copy.deepcopy(state)
+    local.variable_list = {}
+    i = 8
+    for item in ast["parameters"]:
+        #add the parameter to the variable list with the value from the stack
+        local.variable_list[item["content"]["id"].val] = {"size":item["content"]["size"].val, "position":-i}
+        i += size_to_number(item["content"]["size"].val)
+    #generate body#
+    local.stack_position = 0
+    local.base_stack_position = local.stack_position
+    generate(ast["body"], state=local)
+    state.subroutine_section += local.text_section
+
+def generate_return(ast, state):
+    init = generate_expression(ast["value"]["content"], state, "rax") 
+    if init.is_constant or init.in_memory:
+        state.text_section += "mov " + convert_64bit_reg("rax", init.size) + ", " + init.val +"\n"
+    if state.stack_position - state.base_stack_position != 0:
+        state.text_section += "add rsp, " + str(state.stack_position - state.base_stack_position) + "\n"
+    state.text_section += "ret \n"
 
 def generate_expression(ast, state, res_register="rax", is_parsing_left=True):
     if ast["context"] == "unary_expression":
@@ -102,13 +134,19 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 state.text_section += "mov " + convert_64bit_reg("rax", left.size) + ", " + left.val +"\n"
                 left.val = "rax"
         if ast[1].val == "+":
-            state.text_section += "add " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            if right.in_memory:
+                state.text_section += "add " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            else:
+                state.text_section += "add " + left.val + ", " + right.val + "\n"
             if left.val != res_register:
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
                 left.val = res_register
             return item(res_register, "INT", left.size, False, False)
         elif ast[1].val == "-":
-            state.text_section += "sub " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            if right.in_memory:
+                state.text_section += "sub " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            else:
+                state.text_section += "sub " + left.val + ", " + right.val + "\n"
             if left.val != res_register:
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
                 left.val = res_register
@@ -145,7 +183,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 left.val = res_register
             return item(res_register, "INT", left.size, False, False)
         elif ast[1].val == "<":
-            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            if right.in_memory:
+                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            else:
+                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
             state.text_section += "mov rbx, 1\n"
             state.text_section += "mov " + left.val  + ", 0\n"
             state.text_section += "cmovl " + left.val + ", rbx \n"
@@ -154,7 +195,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 left.val = res_register
             return item(res_register, "INT", left.size, False, False)
         elif ast[1].val == "<=":
-            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            if right.in_memory:
+                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            else:
+                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
             state.text_section += "mov rbx, 1\n"
             state.text_section += "mov " + left.val  + ", 0\n"
             state.text_section += "cmovle " + left.val + ", rbx \n"
@@ -163,7 +207,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 left.val = res_register
             return item(res_register, "INT", left.size, False, False)
         elif ast[1].val == ">":
-            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            if right.in_memory:
+                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            else:
+                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
             state.text_section += "mov rbx, 1\n"
             state.text_section += "mov " + left.val  + ", 0\n"
             state.text_section += "cmovg " + left.val + ", rbx \n"
@@ -172,7 +219,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 left.val = res_register
             return item(res_register, "INT", left.size, False, False)
         elif ast[1].val == ">=":
-            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            if right.in_memory:
+                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            else:
+                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
             state.text_section += "mov rbx, 1\n"
             state.text_section += "mov " + left.val  + ", 0\n"
             state.text_section += "cmovge " + left.val + ", rbx \n"
@@ -181,7 +231,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 left.val = res_register
             return item(res_register, "INT", left.size, False, False)
         elif ast[1].val == "==":
-            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            if right.in_memory:
+                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            else:
+                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
             state.text_section += "mov rbx, 1\n"
             state.text_section += "mov " + left.val  + ", 0\n"
             state.text_section += "cmove " + left.val + ", rbx \n"
@@ -190,7 +243,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 left.val = res_register
             return item(res_register, "INT", left.size, False, False)
         elif ast[1].val == "!=":
-            state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            if right.in_memory:
+                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+            else:
+                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
             state.text_section += "mov rbx, 1\n"
             state.text_section += "mov " + left.val  + ", 0\n"
             state.text_section += "cmovne " + left.val + ", rbx \n"
@@ -262,8 +318,7 @@ def generate_value(ast, state):
     if ast["context"] == "identifier":
         return generate_variable(ast, state)
     elif ast["context"] == "function_call":
-        #NOT IMPLEMENTED
-        pass
+        return generate_function_call(ast, state)
     elif ast["context"] == "constant":
         if ast["value"].tag == "STRING":
             ast["value"].val = state.add_data(ast["value"].val, "db")
@@ -284,6 +339,28 @@ def generate_variable(ast, state):
             pos = array_val.val + " * " + str(size_to_number(state.variable_list[ast["value"].val]["size"])) + " + " + str(pos)
 
     return item("[rsp + "+str(pos)+"]", "INT", state.variable_list[ast["value"].val]["size"], False, True)
+
+def generate_function_call(ast, state):
+    i = 0
+    total_argument_size = 0
+    while i < len(ast["parameters"]):
+        size = size_to_number(state.function_list[ast["value"].val]["parameters"][i]["size"])
+        total_argument_size += size
+        state.text_section += "sub rsp, " + str(size) + "\n"
+        state.stack_position += size
+        param = generate_expression(ast["parameters"][i]["content"], state)
+        if param.in_memory:
+            state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
+            param.val = "rbx"
+        if param.is_constant:
+            state.text_section += "mov " + state.function_list[ast["value"].val]["parameters"][i]["size"] + " [rsp], " + param.val + "\n"
+        else:
+            state.text_section += "mov " + state.function_list[ast["value"].val]["parameters"][i]["size"] + " [rsp], " + convert_64bit_reg(param.val, size) + "\n"
+        i+=1
+    state.text_section += "call _" + ast["value"].val + "\n"
+    if len(ast["parameters"]) != 0:
+        state.text_section += "add rsp, " + str(total_argument_size) + "\n"
+    return item("rax", "INT", "qword", False, False)
 
 def to_int(token):
     val = 0
