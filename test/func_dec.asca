@@ -4,15 +4,17 @@ type void;
 
 func print(qword msg:ptr): void{
 	//syscall here
+	return 1;
 }
 func alloc(qword block:int): ptr {
-	return @"not implemented";
+	return 1;
 }
 
 
 func add(qword a:int, qword b:int) : ptr{
 	qword res:int = a+b;
 	print(res);
+	return 0;
 }
 
 func loop_str(qword msg:ptr, word len:int ,word loop:int) : ptr {

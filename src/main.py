@@ -75,7 +75,7 @@ if len(sys.argv) > 1:
         if Analyzer.is_error:
             print("compilation canceled due to previous error(s)")
         else:
-            output = generator.generate(Parser.get_output())
+            output = generator.generate(Parser.get_output(), Analyzer.function_list)
             fp = open("a.asm", "w")
             fp.write(output)
             fp.close()
@@ -84,7 +84,6 @@ if len(sys.argv) > 1:
             #subprocess.call(["rm", "a.asm"])
             subprocess.call(["rm", "a.o"])
             print("compilation completed, output: a.out")
-
 else:
     code = input("@>")
     while code:
@@ -94,5 +93,5 @@ else:
         if not Parser.is_error:
             Analyzer = analyzer.analyze(Parser.get_output())
             if not Analyzer.is_error:
-                generator.generate(Parser.get_output())
+                generator.generate(Parser.get_output(), Analyzer.function_list)
         code = input("@>")  
