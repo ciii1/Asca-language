@@ -1,3 +1,4 @@
+import copy
 import lexer
 import sys
 
@@ -374,8 +375,7 @@ def parse_if(state):
         res = parse_elif(state)
         if res is None:
             return None
-        output["content"]["elif"] = res
-    
+        output["content"]["elif"] = res 
     if state.peek_next_token().val == "else":
         state.inc_position()
         res = parse_else(state)
@@ -426,7 +426,7 @@ def parse_elif(state):
         if state.get_token().val != "}":
             return None
 
-        output.append(small_output)
+        output.append(copy.deepcopy(small_output))
         state.inc_position()
 
     state.dec_position()
