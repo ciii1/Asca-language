@@ -74,23 +74,41 @@ def analyze_function_declaration(ast, state):
     if len(ast["parameters"]) == 0:
         state.function_list[ast["id"].val] = {"parameters":{}, "type":ast["type"].val}
     else:
+        i = 0
+        params = []
         for param in ast["parameters"]:
-            res = analyze_variable_declaration(param["content"], local)
-            if res is None:
-                return None
-            if param["content"]["array-size"] is not None:
-                throw_error("can't use array as a parameter for a function", ast["id"])
-                return None
-            if param["content"]["init"] is not None:
-                throw_error("cannot assign in parameter list", ast["id"])
-                return None
-        state.function_list[ast["id"].val] = {"parameters":copy.deepcopy(res.variable_list), "type":ast["type"].val}
+            analyze_variable_declaration(param["content"], local)
+            res = analyze_function_parameter(param["content"], state)
+            params.append(res)
+            i += 1
+        state.function_list[ast["id"].val] = {"parameters":params, "type":ast["type"].val}
     if analyze(ast["body"], local).is_error:
         return None
     if not local.has_return_value:
         throw_error("a function must has a return value" , ast["id"])
         return None
     return state
+
+def analyze_function_parameter(ast, state):
+    if ast["init"] is not None:
+        throw_error("cannot assign in parameter list", ast["id"])
+        return None
+    if ast["array-size"] is not None:
+        throw_error("can't use array as a parameter for a function", ast["id"])
+        return None
+    if state.variable_list.get(ast["id"].val) or state.function_list.get(ast["id"].val) or state.type_list.get(ast["id"].val):
+        throw_error("name %s is already exist" % ast["id"].val, ast["size"])
+        return None
+    if not state.type_list.get(ast["type"].val):
+        throw_error("undeclared type", ast["type"])
+        return None
+    if size_to_number(state.type_list[ast["type"].val]["min_size"])  > size_to_number(ast["size"].val):
+        throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
+        return None
+    if ast["array-size"] is None:
+        return {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"]}
+    else:
+        return {"size": ast["size"].val, "type": ast["type"].val, "array-size": ast["array-size"].val, "init":ast["init"]}
 
 def analyze_if(ast, state):
     if analyze_expression(ast["condition"]["content"], state) is None:
@@ -189,17 +207,17 @@ def analyze_variable_declaration(ast, state):
     if state.variable_list.get(ast["id"].val) or state.function_list.get(ast["id"].val) or state.type_list.get(ast["id"].val):
         throw_error("name %s is already exist" % ast["id"].val, ast["size"])
         return None
+    if not state.type_list.get(ast["type"].val):
+        throw_error("undeclared type", ast["type"])
+        return None
+   
+    if size_to_number(state.type_list[ast["type"].val]["min_size"])  > size_to_number(ast["size"].val):
+        throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
+        return None
     if ast["array-size"] is None:
         state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"]}
     else:
         state.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": ast["array-size"].val, "init":ast["init"]}
-    res = state.type_list.get(ast["type"].val)
-    if res is None:
-        throw_error("undeclared type", ast["type"])
-        return None
-    if size_to_number(res["min_size"])  > size_to_number(ast["size"].val):
-        throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
-        return None
     return state
 
 def analyze_expression(ast, state):
