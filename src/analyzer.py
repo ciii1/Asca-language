@@ -78,7 +78,9 @@ def analyze_function_declaration(ast, state):
         params = []
         for param in ast["parameters"]:
             analyze_variable_declaration(param["content"], local)
-            res = analyze_function_parameter(param["content"], state)
+            res = fetch_function_parameter(param["content"], state)
+            if res is None:
+                return None
             params.append(res)
             i += 1
         state.function_list[ast["id"].val] = {"parameters":params, "type":ast["type"].val}
@@ -89,21 +91,12 @@ def analyze_function_declaration(ast, state):
         return None
     return state
 
-def analyze_function_parameter(ast, state):
+def fetch_function_parameter(ast, state):
     if ast["init"] is not None:
         throw_error("cannot assign in parameter list", ast["id"])
         return None
     if ast["array-size"] is not None:
         throw_error("can't use array as a parameter for a function", ast["id"])
-        return None
-    if state.variable_list.get(ast["id"].val) or state.function_list.get(ast["id"].val) or state.type_list.get(ast["id"].val):
-        throw_error("name %s is already exist" % ast["id"].val, ast["size"])
-        return None
-    if not state.type_list.get(ast["type"].val):
-        throw_error("undeclared type", ast["type"])
-        return None
-    if size_to_number(state.type_list[ast["type"].val]["min_size"])  > size_to_number(ast["size"].val):
-        throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
         return None
     if ast["array-size"] is None:
         return {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"]}
@@ -200,17 +193,17 @@ def analyze_variable_declaration(ast, state):
         res = analyze_expression(ast["init"]["content"], state)
         if res is None:
             return None 
-        if not is_literal(res) and\
-           ast["type"].val != res.type:
-            throw_error("can't assign '%s' to '%s'" % (res.type, ast["type"].val), ast["size"])
+        if (not is_literal(res) and\
+           ast["type"].val != res.type) or\
+           res.is_array:
+            throw_error("mismatched type", ast["size"])
             return None
     if state.variable_list.get(ast["id"].val) or state.function_list.get(ast["id"].val) or state.type_list.get(ast["id"].val):
         throw_error("name %s is already exist" % ast["id"].val, ast["size"])
         return None
     if not state.type_list.get(ast["type"].val):
         throw_error("undeclared type", ast["type"])
-        return None
-   
+        return None 
     if size_to_number(state.type_list[ast["type"].val]["min_size"])  > size_to_number(ast["size"].val):
         throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
         return None
