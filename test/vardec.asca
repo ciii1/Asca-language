@@ -7,5 +7,5 @@ qword z : int = 2;
 
 //((x*y)*(y*z))/((y*z)*(z*y));
 //(x==y || x==z);
-//((x-y))+((x-y*x+y));//+((x+5)*(y+z));
-z=x+y;
+//dword a:int = ((x-y))+((x-y*x+y))+((x+5)*(y+z));
+//z=x+y;

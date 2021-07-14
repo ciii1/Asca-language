@@ -1,22 +1,13 @@
-type int;
-type bint:dword;
+type Int;
 
-qword a:int = 10;
-qword b:bint = 10;
-for(word i:int = 0; i < 200; i+=1){
-	if(i > 10 && i < 100) {
-		if(a > 10) {
-			a += 1;
-		} else {
-			a = 1;
-		}	
-	} elif (i > 100) {
-		a *= 2;
-	} else {
-		a -= 1;
+word a:Int = 10;
+byte b:Int = 8;
+
+func is_both_equal(dword a:Int, dword b:Int):Int {
+	if(a == b) {
+		return true;
 	}
-	if(a < 10) {
-		a += 5;
-	}
+	return false;
 }
 
+is_both_equal(a, b);
