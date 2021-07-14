@@ -34,6 +34,8 @@ def generate(ast, function_list = None, state = None):
             generate_variable_declaration(tree["content"], state)
         elif tree["context"] == "function_declaration":
             generate_function_declaration(tree["content"], state)
+        elif tree["context"] == "if":
+            generate_if(tree["content"], state)
         elif tree["context"] == "return":
             generate_return(tree["content"], state)
     output = ""
@@ -51,14 +53,18 @@ def generate_variable_declaration(ast, state):
     size = size_to_number(ast["size"].val)
     if ast["array-size"] is not None:
         size *= int(ast["array-size"].val)
-
     state.stack_position += size
     state.variable_list[ast["id"].val] = {"size":ast["size"].val, "position":state.stack_position}
     state.text_section += "sub rsp, " + str(size) + "\n"
-        
     if ast["init"] is not None:
         init = generate_expression(ast["init"]["content"], state)
-        state.text_section += "mov " + ast["size"].val + " [rsp], " + init.val + "\n"
+        if init.in_memory:
+            state.text_section += "mov " + convert_64bit_reg("rax", init.size) + ", " + init.val + "\n"
+            init.val = "rax"
+        if init.size != "qword":
+            state.text_section += "movsx rax, " + convert_64bit_reg(init.val, init.size) + "\n"
+            init.size = "qword"
+        state.text_section += "mov " + ast["size"].val + " [rsp], " + convert_64bit_reg(init.val, ast["size"].val) + "\n"
 
 def generate_function_declaration(ast, state):
     state.subroutine_section += "_" + ast["id"].val + ":\n"
@@ -72,13 +78,18 @@ def generate_function_declaration(ast, state):
     #generate body#
     local.stack_position = 0
     local.base_stack_position = local.stack_position
+    local.text_section = ""
     generate(ast["body"], state=local)
     state.subroutine_section += local.text_section
+    state.label_count = local.label_count
 
 def generate_return(ast, state):
     init = generate_expression(ast["value"]["content"], state, "rax") 
     if init.is_constant or init.in_memory:
         state.text_section += "mov " + convert_64bit_reg("rax", init.size) + ", " + init.val +"\n"
+        init.val = "rax"
+    if init.size != "qword":
+        state.text_section += "movsx rax, " + convert_64bit_reg("rax", init.size) + "\n"
     if state.stack_position - state.base_stack_position != 0:
         state.text_section += "add rsp, " + str(state.stack_position - state.base_stack_position) + "\n"
     state.text_section += "ret \n"
@@ -128,11 +139,11 @@ def generate_infix(ast, state, res_register, is_parsing_left):
             return item(str(left_val and right_val), "INT", "qword", True, False)
     else:
         if ast[1].tag != "ASSIGNMENT_OPERATOR" and (left.is_constant or left.in_memory):
-                if right.val == "rax":
-                    state.text_section += "mov rbx, rax \n"
-                    right.val = "rbx"
-                state.text_section += "mov " + convert_64bit_reg("rax", left.size) + ", " + left.val +"\n"
-                left.val = "rax"
+            if right.val == "rax":
+                state.text_section += "mov rbx, rax \n"
+                right.val = "rbx"
+            state.text_section += "mov " + convert_64bit_reg("rax", left.size) + ", " + left.val +"\n"
+            left.val = "rax"
         if ast[1].val == "+":
             if right.in_memory:
                 state.text_section += "add " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
@@ -156,11 +167,13 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 if right.val == "rax":
                     state.text_section += "mov r10, rax \n"
                     right.val = "r10"
-                state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + left.val + "\n"
+                state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + convert_64bit_reg(left.val, left.size) + "\n"
                 left.val = "rax"
             if right.is_constant:
                 state.text_section += "mov " + convert_64bit_reg("rbx", right.size) + ", " + right.val + "\n"
                 right.val = "rbx"
+            if not right.is_constant and not right.in_memory:
+                right.val = convert_64bit_reg(right.val, right.size)
             state.text_section += "mul " + right.size + " " + right.val + "\n"
             if left.val != res_register: 
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
@@ -171,12 +184,14 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 if right.val == "rax":
                     state.text_section += "mov r10, rax \n"
                     right.val = "r10"
-                state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + left.val + "\n"
+                state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + convert_64bit_reg(left.val, left.size) + "\n"
                 left.val = "rax"
             if right.is_constant:
                 state.text_section += "mov " + convert_64bit_reg("rbx", right.size) + ", " + right.val + "\n"
                 right.val = "rbx"
             state.text_section += "mov rdx, 0\n"
+            if not right.is_constant and not right.in_memory:
+                right.val = convert_64bit_reg(right.val, right.size)
             state.text_section += "div " + right.size + " " + right.val + "\n"
             if left.val != res_register:
                 state.text_section += "mov " + res_register + ", " + left.val + "\n"
@@ -278,19 +293,28 @@ def generate_infix(ast, state, res_register, is_parsing_left):
             if right.in_memory:
                 state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
                 right.val = "rbx"
-            state.text_section += "mov " + left.size + " " + left.val + ", " + right.val + "\n"
+            if left.size == "qword" and right.size != "qword":
+                state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
+                right.size = "qword"
+            state.text_section += "mov " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
             return item(left.val, "INT", left.size, False, True) 
         elif ast[1].val == "+=":
             if right.in_memory:
                 state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
                 right.val = "rbx"
-            state.text_section += "add " + left.size + " " + left.val + ", " + right.val + "\n"
+            if left.size == "qword" and right.size != "qword":
+                state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
+                right.size = "qword"
+            state.text_section += "add " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
             return item(left.val, "INT", left.size, False, True) 
         elif ast[1].val == "-=":
             if right.in_memory:
                 state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
                 right.val = "rbx"
-            state.text_section += "sub " + left.size + " " + left.val + ", " + right.val + "\n"
+            if left.size == "qword" and right.size != "qword":
+                state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
+                right.size = "qword"
+            state.text_section += "sub " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
             return item(left.val, "INT", left.size, False, True) 
 
 def generate_unary(ast, state):
@@ -337,30 +361,92 @@ def generate_variable(ast, state):
                 state.text_section += "mov " + convert_64bit_reg("rbx", array_val.size) + ", " + array_val.val + "\n"
                 array_val.val = "rbx"
             pos = array_val.val + " * " + str(size_to_number(state.variable_list[ast["value"].val]["size"])) + " + " + str(pos)
-
-    return item("[rsp + "+str(pos)+"]", "INT", state.variable_list[ast["value"].val]["size"], False, True)
+    return item("[rsp + " + str(pos) + "]", "INT", state.variable_list[ast["value"].val]["size"], False, True)
 
 def generate_function_call(ast, state):
-    i = 0
+    i = len(ast["parameters"])-1
     total_argument_size = 0
-    while i < len(ast["parameters"]):
-        size = size_to_number(state.function_list[ast["value"].val]["parameters"][i]["size"])
-        total_argument_size += size
-        state.text_section += "sub rsp, " + str(size) + "\n"
-        state.stack_position += size
+    while i >= 0:
+        arg_size = state.function_list[ast["value"].val]["parameters"][i]["size"]
+        total_argument_size += size_to_number(arg_size)
+        state.text_section += "sub rsp, " + str(size_to_number(arg_size)) + "\n"
+        state.stack_position += size_to_number(arg_size)
         param = generate_expression(ast["parameters"][i]["content"], state)
         if param.in_memory:
             state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
             param.val = "rbx"
         if param.is_constant:
-            state.text_section += "mov " + state.function_list[ast["value"].val]["parameters"][i]["size"] + " [rsp], " + param.val + "\n"
+            state.text_section += "mov " + arg_size + " [rsp], " + param.val + "\n"
         else:
-            state.text_section += "mov " + state.function_list[ast["value"].val]["parameters"][i]["size"] + " [rsp], " + convert_64bit_reg(param.val, size) + "\n"
-        i+=1
+            if param.size != "qword":
+                state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
+            state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg(param.val, arg_size) + "\n"
+        i-=1
     state.text_section += "call _" + ast["value"].val + "\n"
     if len(ast["parameters"]) != 0:
         state.text_section += "add rsp, " + str(total_argument_size) + "\n"
     return item("rax", "INT", "qword", False, False)
+
+def generate_if(ast, state):
+    end_label = "_END" + str(state.label_count) #label for jump after if or elif condition (called the end label here)
+    #generate if condition
+    condition = generate_expression(ast["condition"]["content"], state)
+    if condition.is_constant:
+        state.text_section += "mov rax, " + condition.val + "\n" 
+        condition.val = "rax"
+    state.text_section += "cmp " + condition.val + ", 0\n"
+    state.text_section += "jne _IF" + str(state.label_count) + "\n"
+    if_label = "_IF" + str(state.label_count)
+    state.label_count += 1 
+    elif_body = []
+    #generate elif conditions
+    for item in ast["elif"]:
+        item = item["content"]
+        condition = generate_expression(item["condition"]["content"], state)
+        if condition.is_constant:
+            state.text_section += "mov rax, " + condition.val + "\n" 
+            condition.val = "rax"
+        state.text_section += "cmp " + condition.val + ", 0\n"
+        state.text_section += "jne _ELIF" + str(state.label_count) + "\n"
+        elif_body.append(["_ELIF" + str(state.label_count) , item["body"]])
+        state.label_count += 1
+    #generate else body
+    #if if and elif conditions were not fulfilled then it'll go here, wich is the else body 
+    if ast["else"]:
+        local = copy.deepcopy(state)
+        local.text_section = ""
+        base_stack_position = local.stack_position
+        generate(ast["else"]["content"]["body"], state=local)
+        state.text_section += local.text_section
+        state.label_count += local.label_count
+        if local.stack_position - base_stack_position != 0:
+            state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
+    state.text_section += "jmp " + end_label + "\n"
+    #generate if body
+    state.text_section += if_label + ":\n"
+    local = copy.deepcopy(state)
+    local.text_section = ""
+    base_stack_position = local.stack_position
+    generate(ast["body"], state=local)
+    state.text_section += local.text_section
+    state.label_count += local.label_count
+    if local.stack_position - base_stack_position != 0:
+        state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
+    state.text_section += "jmp " + end_label + "\n"
+    #generate elif bodies
+    for label, body in elif_body:
+        state.text_section += label + ":\n"
+        local = copy.deepcopy(state)
+        local.text_section = ""
+        base_stack_position = local.stack_position
+        generate(body, state=local)
+        state.text_section += local.text_section
+        state.label_count += local.label_count
+        if local.stack_position - base_stack_position != 0:
+            state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
+        state.text_section += "jmp " + end_label + "\n" 
+    #generate the end label
+    state.text_section += end_label + ":\n"
 
 def to_int(token):
     val = 0
@@ -482,7 +568,10 @@ def convert_64bit_reg(reg, size):
     res = size_to_number(size)
     if res is not None:
         size = res
-    return reg_list[reg][size]
+    if reg_list.get(reg):
+        return reg_list[reg][size]
+    else:
+        return reg
 
 def size_to_number(size):
     if size == "qword":
