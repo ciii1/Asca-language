@@ -43,6 +43,11 @@ dword b:int2;
 a+b; //semantic_error: mismatched type
 dword a:int1 = b; //semantic_error: cannot assign type 'int2' to 'int1'
 ```
+a size can have a minimum value:
+```
+type float:dword;
+word a:float = 1; //semantic_error: variable a's size is less than minimum size of a the type 'float'
+```
 
 ### Variables
 
