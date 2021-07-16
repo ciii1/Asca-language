@@ -7,7 +7,7 @@ It is compiled to nasm assembly
 you can find it [here](docs/docs.md)
 
 ### TODO
-- [ ] Floating point values and `precise-operators`
+- [X] Floating point values and `precise-operators`
 - [ ] Generate `while` and `for` loops
 - [ ] SysV ABI function call convention
 - [ ] Link with C libraries
