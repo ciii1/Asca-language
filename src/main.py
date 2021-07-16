@@ -13,7 +13,6 @@ def init_tokens(input):
         (r'#[^\n]*',                                        None),
         (r'\[',                                             'RESERVED'),
         (r'\]',                                             'RESERVED'),
-        (r'\:',                                             'RESERVED'),
         (r'\;',                                             'RESERVED'),
         (r',',                                              'RESERVED'),
         (r'\(',                                             'RESERVED'),
@@ -29,15 +28,29 @@ def init_tokens(input):
         (r'>=',                                             'RELATIONAL_OPERATOR'),
         (r'>',                                              'RELATIONAL_OPERATOR'),
         (r'!=',                                             'RELATIONAL_OPERATOR'),
+        (r':==',                                            'PRECISE_RELATIONAL_OPERATOR'),
+        (r':<=',                                            'PRECISE_RELATIONAL_OPERATOR'),
+        (r':<',                                             'PRECISE_RELATIONAL_OPERATOR'),
+        (r':>=',                                            'PRECISE_RELATIONAL_OPERATOR'),
+        (r':>',                                             'PRECISE_RELATIONAL_OPERATOR'),
+        (r':!=',                                            'PRECISE_RELATIONAL_OPERATOR'),
         (r'&&',                                             'CONDITIONAL_OPERATOR'),
         (r'\|\|',                                           'CONDITIONAL_OPERATOR'),
+        (r':&&',                                            'PRECISE_CONDITIONAL_OPERATOR'),
+        (r':\|\|',                                          'PRECISE_CONDITIONAL_OPERATOR'),
         (r'=',                                              'ASSIGNMENT_OPERATOR'),
         (r'\+=',                                            'ASSIGNMENT_OPERATOR'),
-        (r'\-=',                                            'ASSIGNMENT_OPERATOR'),
+        (r'\-=',                                            'ASSIGNMENT_OPERATOR'), 
+        (r':=',                                             'PRECISE_ASSIGNMENT_OPERATOR'),
         (r'\+',                                             'ARITHMETICAL_OPERATOR'),
         (r'-',                                              'ARITHMETICAL_OPERATOR'),
         (r'\*',                                             'ARITHMETICAL_OPERATOR'),
         (r'/',                                              'ARITHMETICAL_OPERATOR'),
+        (r':\+',                                            'PRECISE_ARITHMETICAL_OPERATOR'),
+        (r':-',                                             'PRECISE_ARITHMETICAL_OPERATOR'),
+        (r':\*',                                            'PRECISE_ARITHMETICAL_OPERATOR'),
+        (r':/',                                             'PRECISE_ARITHMETICAL_OPERATOR'),
+        (r'\:',                                             'RESERVED'),
         (r'(?<![A-Za-z0-9_])type(?![A-Za-z0-9_])',          'RESERVED'),
         (r'(?<![A-Za-z0-9_])func(?![A-Za-z0-9_])',          'RESERVED'),
         (r'(?<![A-Za-z0-9_])if(?![A-Za-z0-9_])',            'RESERVED'),
@@ -59,7 +72,6 @@ def init_tokens(input):
         (r'[0-9]+',                                          'INT'),
         (r'[_A-Za-z][A-Za-z0-9_]*',                          'ID')
     ]
-
     return lexer.lex(input, token_exprs)
 
 if len(sys.argv) > 1:
@@ -85,6 +97,8 @@ if len(sys.argv) > 1:
             subprocess.call(["rm", "a.o"])
             print("compilation completed, output: a.out")
 else:
+    print("Asca interactive syntax and semantic tester (for debugging purpose)")
+    print("(i) the code you type wouldn't be compiled \n")
     code = input("@>")
     while code:
         code = preprocessor.preprocess(code)
@@ -92,6 +106,4 @@ else:
         Parser = parser.parse(tokens)
         if not Parser.is_error:
             Analyzer = analyzer.analyze(Parser.get_output())
-            if not Analyzer.is_error:
-                generator.generate(Parser.get_output(), Analyzer.function_list)
         code = input("@>")  

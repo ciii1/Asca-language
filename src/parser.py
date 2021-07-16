@@ -467,6 +467,7 @@ def parse_variable_declaration(state):
             "array-size": None,
             "id": None,
             "type": None,
+            "init-sign": None,
             "init": None,
         }
     }
@@ -502,8 +503,10 @@ def parse_variable_declaration(state):
     else:
         return None
     
-    if state.peek_next_token().val == '=':
-        state.inc_position(2)
+    if state.peek_next_token().val == '=' or state.peek_next_token().val == ":=":
+        state.inc_position()
+        output["content"]["init-sign"] = state.get_token()
+        state.inc_position()
         res = parse_expression(state)
         if res is not None:
             output["content"]["init"] = res
@@ -560,27 +563,38 @@ def parse_infix(state, rbp = 0):
 
 def get_priority(token):
     if token == "=" or\
-         token == "+=" or\
-         token == "-=" or\
-         token == "*=" or\
-         token == "/=":
+       token == "+=" or\
+       token == "-=" or\
+       token == ":=":
         return 10
-    elif token == "||":
+    elif token == "||" or\
+         token == ":||":
         return 20
-    elif token == "&&":
+    elif token == "&&" or\
+         token == ":&&":
         return 30
     elif token == ">=" or\
          token == ">"  or\
          token == "<=" or\
          token == "<"  or\
          token == "==" or\
-         token == "!=":
+         token == "!=" or\
+         token == ":>=" or\
+         token == ":>"  or\
+         token == ":<=" or\
+         token == ":<"  or\
+         token == ":==" or\
+         token == ":!=":
         return 40
     elif token == "+" or\
-         token == "-":
+         token == "-" or\
+         token == ":+" or\
+         token == ":-":
         return 50
     elif token == "*" or\
-         token == "/":
+         token == "/" or\
+         token == ":*" or\
+         token == ":/":
         return 60
 
 def get_associativity(token):
@@ -589,23 +603,38 @@ def get_associativity(token):
     elif token == "&&":
         return "left"
     elif token == "+" or\
-         token == "-":
+         token == "-" or\
+         token == ":+" or\
+         token == ":-":
         return "left"
     elif token == "*" or\
-         token == "/":
+         token == "/" or\
+         token == ":*" or\
+         token == ":/":
         return "left"
     elif token == ">=" or\
          token == ">"  or\
          token == "<=" or\
          token == "<"  or\
          token == "==" or\
-         token == "!=":
+         token == "!=" or\
+         token == ":>=" or\
+         token == ":>"  or\
+         token == ":<=" or\
+         token == ":<"  or\
+         token == ":==" or\
+         token == ":!=":
         return "left"
     elif token == "="  or\
          token == "+=" or\
          token == "-=" or\
          token == "*=" or\
-         token == "/=":
+         token == "/=" or\
+         token == ":="  or\
+         token == ":+=" or\
+         token == ":-=" or\
+         token == ":*=" or\
+         token == ":/=":
         return "right"
 
 def parse_unary(state):

@@ -196,8 +196,15 @@ def analyze_variable_declaration(ast, state):
         if (not is_literal(res) and\
            ast["type"].val != res.type) or\
            res.is_array:
-            throw_error("mismatched type", ast["size"])
+            throw_error("mismatched type", ast["init-sign"])
             return None
+        if ast["init-sign"].val == ":=":
+            if ast["size"].val != "qword" and ast["size"].val != "dword":
+                throw_error("trying to use precise-assign to a size below dword", ast["size"])
+                return None
+            if not res.is_in_memory:
+                throw_error("can't precise-assign a non-memory-stored value", ast["init-sign"])
+                return None
     if state.variable_list.get(ast["id"].val) or state.function_list.get(ast["id"].val) or state.type_list.get(ast["id"].val):
         throw_error("name %s is already exist" % ast["id"].val, ast["size"])
         return None
@@ -228,8 +235,27 @@ def analyze_infix(ast, state):
     if left is None or right is None:
         return None
     if operator.tag == "ARITHMETICAL_OPERATOR" or\
-       operator.tag == "RELATIONAL_OPERATOR":
-        if not is_literal(left) and not is_literal(right) and\
+       operator.tag == "RELATIONAL_OPERATOR" or\
+       operator.tag == "CONDITIONAL_OPERATOR":
+        if (not is_literal(left) and not is_literal(right) and\
+           left.type != right.type):
+            throw_error("mismatched type", left.token)
+            return None
+        if left.is_array:
+            throw_error("can't use array as operand", left.token)
+            return None
+        if right.is_array:
+            throw_error("can't use array as operand", right.token)
+            return None
+        if operator.tag == "RELATIONAL_OPERATOR":
+            left.type = "BOOL"
+            left.is_in_memory = False
+        else:
+            left.is_in_memory = False
+    elif operator.tag == "PRECISE_ARITHMETICAL_OPERATOR" or\
+         operator.tag == "PRECISE_RELATIONAL_OPERATOR" or\
+         operator.tag == "PRECISE_CONDITIONAL_OPERATOR":
+        if (not is_literal(left) and not is_literal(right)) and\
            left.type != right.type:
             throw_error("mismatched type", left.token)
             return None
@@ -239,6 +265,12 @@ def analyze_infix(ast, state):
         if right.is_array:
             throw_error("can't use array as operand", right.token)
             return None
+        if not right.is_in_memory or not left.is_in_memory:
+            throw_error("can't use %s with a non-memory stored operand" % operator.val, operator)
+            return None
+        if operator.tag == "PRECISE_RELATIONAL_OPERATOR":
+            left.type = "BOOL"
+            left.is_in_memory = False
     elif operator.tag == "ASSIGNMENT_OPERATOR":
         if left.is_array:
             throw_error("cannot assign to an array", left.token)
@@ -250,8 +282,22 @@ def analyze_infix(ast, state):
            left.type != "LIT" and\
            not is_literal(right):
             throw_error("mismatched type", left.token)
+            return None 
+    elif operator.tag == "PRECISE_ASSIGNMENT_OPERATOR":
+        if left.is_array:
+            throw_error("cannot assign to an array", left.token)
             return None
-        
+        if not left.is_in_memory:
+            throw_error("cannot assign to a non-memory-stored value", left.token)
+            return None
+        if left.type != right.type and\
+           left.type != "LIT" and\
+           not is_literal(right):
+            throw_error("mismatched type", left.token)
+            return None
+        if not right.is_in_memory:
+            throw_error("cannot precise-assign a non-memory-stored value", left.token)
+            return None
     return left
 
 def analyze_unary(ast, state):
@@ -294,6 +340,8 @@ def analyze_value(ast, state):
     elif ast["context"] == "constant":
         if ast["value"].tag == "STRING":
             return item(ast["value"], ast["value"].tag, True, True)
+        elif ast["value"].tag == "FLOAT":
+            return item(ast["value"], ast["value"].tag, False, True)
         else:
             return item(ast["value"], ast["value"].tag, False, False)
 
@@ -337,6 +385,9 @@ def is_literal(val):
     
 def throw_error(msg, token):
     sys.stderr.write("semantic_error: %s at line %s: %s \n" % (msg, token.line , token.char+1))
+
+def throw_warning(msg, token):
+    print("semantic_warning: %s at line %s: %s" % (msg, token.line , token.char+1))
 
 def size_to_number(size):
     if size == "qword":
