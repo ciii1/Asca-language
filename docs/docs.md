@@ -9,11 +9,7 @@ to let you gain more control of your program.
 #### Principles
 There are two main principles that asca operates on:
 - every value is treated the same. Meaning that a float will be treated the same as an int.
-<<<<<<< HEAD
-- a type is used to differentiate those values; it restricts you from doing operations on different type.
-=======
 - a type is used to differentiate those values; it stricts you from doing operations on different type.
->>>>>>> ac565acdae7ab0f707b233951bfe50b357c4c07a
 
 now you'd probably start to wonder, how can Asca treat every value as the same thing as each values has different memory representations and operations? Well, that's why Asca has a lot operators; you simply differentiate the operations yourself (like how you'd do it in assembly). For example:
 
@@ -36,11 +32,9 @@ With these in mind, let's continue with the syntax.
 
 ### Types
 
-<<<<<<< HEAD
 As mentioned before, types are just things that restrict you from doing operations with different types. You can declare it with the `type` keyword:
 =======
 As mentioned before, types are just things that strict you from doing operations with different types. You can declare it with the `type` keyword:
->>>>>>> ac565acdae7ab0f707b233951bfe50b357c4c07a
 ```
 type int1;
 type int2;
@@ -208,9 +202,3 @@ and single-line comments:
 ```
 //single-line comments
 ```
-
-
-<<<<<<< HEAD
-
-=======
->>>>>>> ac565acdae7ab0f707b233951bfe50b357c4c07a
