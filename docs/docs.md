@@ -16,7 +16,7 @@ now you'd probably start to wonder, how can Asca treat every value as the same t
 ```
 type float; //declare a type called float
 qword a:float := 1.2;
-a :+= 1.2;
+a := 13.2;
 ```
 notice the `:=` and `:+=` operator? It's called precise-assigment operator (i know it's a silly name but i can't think of a better name, sorry) you can
 use it for floating point values, it uses the `movss`/`movsd`/`movq` (depends to the variable size) instruction to assign to a memory while `=` uses the `mov` instruction. You can, for sure, use the the `=` operator for floats but you wouldn't get the precision you'd have with `:=`, but sometimes, that's what you want, so Asca allows you to do that.
