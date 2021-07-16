@@ -1,0 +1,7 @@
+type Float;
+type Int;
+
+qword a:Float = 0.3;
+qword b:Float = 10.0; //for now, it only supports operations between the same size, need to fix this tho.
+a := b :+ b :* a;
+a :== 13.0;
