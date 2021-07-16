@@ -1,18 +1,58 @@
 
-# About
+### About
 
 Asca is a language that aims to remove all the unnecesary high level abstractions
 to let you gain control of your program.
 
-# Variables
+### Basics
+
+#### Principles
+There are principles that you need to remember while writing asca:
+- every value is treated the same. Meaning that a float will be treated the same as an int.
+- a type is used to differentiate those values; it stricts you from doing operations on different type.
+
+now you'd probably start to wonder, how can Asca treat every value as the same thing as each values has different memory representations and operations? Well, that's why Asca has a lot operators; you simply differentiate the operations yourself (like how you'd do it in assembly). For example:
+
+```
+type float; //declare a type called float
+qword a:float := 1.2;
+a :+= 1.2;
+```
+notice the `:=` and `:+=` operator? It's called precise-assigment operator (i know it's a silly name but i can't think of a better name, sorry) you can
+use it for floating point values, it uses the `movss`/`movsd`/`movq` (depends to the variable size) instruction to assign to a memory while `=` uses the `mov` instruction. You can, for sure, use the the `=` operator for floats but you wouldn't get the precision you'd have with `:=`, but sometimes, that's what you want, so Asca allows you to do that.
+
+#### Values
+
+as i said, every value is the same in Asca, but values have types too (please don't get confused, read a little more):
+- memory-stored values : values stored in memory, like variables
+- constants : constant values, like `12`, `'a'` or `4.2`
+
+Constants are stored in the registers unless two: literal floats and literal strings, they are stored in read-only memory (`.data` section).
+*To be honest, you don't really need to know this, but the compiler will give you error messages using these terms, so it's worth telling you this.*
+
+With these in mind, let's continue.
+
+### Types
+
+As mentioned before, types are just things that strict you from doing operations with different types. You can declare it with the `type` keyword:
+```
+type int1;
+type int2;
+dword a:int1;
+dword b:int2;
+a+b; //semantic_error: mismatched type
+dword a:int1 = b; //semantic_error: cannot assign type 'int2' to 'int1'
+```
+
+### Variables
 
 In asca, a size of a variable does not depedend on it's type,
 rather you specify it manually everytime you declare a variable.
 the size keywords are:
-qword: 8 bytes,
-dword: 4 bytes,
-word: 2 bytes,
-byte: 1 byte,
+- `qword`: 8 bytes,
+- `dword`: 4 bytes,
+- `word`: 2 bytes,
+- `byte`: 1 byte,
 
 for example:
 
@@ -24,28 +64,10 @@ dword i:int; //declare a variable i with the type int and size of a dword
 this, while it maybe an exhausting thing to do, gives you more control
 to your own program.
 
-Asca also doesn't have global variables, due to it's structure,
-this perhaps would explain why:
+Asca also doesn't allow global variables.
+All variables are stored in the stack.
 
-```
-type int;
-
-dword a:int = 1;
-
-func getOne() {
-	return 1;
-}
-
-a = 1;
-```
-
-You see? the main "function" of an ascs program is the part where you declare
-global variables in a C program. This make asca doesn't have a global variable, because
-there is no room to declare one.
-
-Also, all variables are stored in the stack.
-
-# Arrays
+### Arrays
 
 The syntax to declare an array is:
 ```
@@ -63,16 +85,21 @@ a[5] = 2;
 ```
 
 Or you can do it with a loop.
+By meaning you can't do it with this: (at least for now)
 
-Asca also doesn't allow VLAs (Variable length array), your program safety is always
-been our priority.
+```
+dword[5] a:int = {2, 2, 2, 2, 2};
+```
+
+Asca also doesn't allow VLAs (Variable length array), your program safety is always our priority.
+You can use the heap for dynamic memory instead.
 
 this means you can't do:
 ```
 dword[a] b:int;
 ```
 
-# Pointers
+### Pointers
 
 In asca, pointers are just numbers that holds the address of a memory.
 Nothing special with it.
@@ -89,7 +116,7 @@ To access the value of a memory address, you can use the $ operator:
 dword c:int;
 c = $(dword)b;
 ```
-Unlike C, Asca pointers don't have type. This means you'll need to specify the size
+Because asca pointers are just the same as an int and other values. This means you'll need to specify the size
 you wan't to read everytime you access the value of a memory address.
 the syntax of $ operator is:
 ```
@@ -101,9 +128,9 @@ dword a:int = 2;
 byte b:char = 'a';
 a = $(byte)@b;
 ```
-this will assign the value of b to a.
+this will assign a pointer that points to `b`, read one byte from it and assign it to `a`.
 
-# Strings
+### Strings
 
 string literals are stored into the .data section. And since it's
 considered as an array, you can't assign it directly into a variable.
@@ -118,17 +145,37 @@ qword a:ptr = @"hello";
 this (for me at least) gives you more consistency than C where variables are not clear wether it's stored in .data section or in the stack,
 but in Asca, every variables is stored on the stack.
 
-# Loops
-there are two types of loop in asca: while and for loop.
-their syntax is the same with C loops' syntax.
+### Loops
+there are two types of loop in asca: `while` and `for` loop.
+their syntax is the same with C loops' syntax:
+```
+for(initialisation; condition; expression) {
+	statements;
+}
+```
+and `while`:
 
-# If, elif, else.
-the syntax of if, elif and else is the same with
-C. Just that the "else if" is replaced with "elif"
+```
+while(condition) {
+	statements;
+}
+```
 
-# Functions
+### `If`, `elif`, `else`.
+the syntax of `if`, `elif` and `else` is the same with
+C. Just that the `else if` is replaced with `elif`:
+```
+if(condition) {
+	statements;
+} elif (condition) {
+	statements;
+} else (condition) {
+	statements;
+}
+```
+### Functions
 
-In asca you can declare functions with the 'func' keyword.
+In asca you can declare functions with the `func` keyword.
 ```
 func add(qword a:int, qword b:int):int {
 	return a+b;
@@ -137,4 +184,18 @@ func add(qword a:int, qword b:int):int {
 
 Note that Asca parameters are pass by value, like C
 and not pass by reference like python and php.
+
+### Comments
+
+```
+/*
+	multiline comments
+*/
+```
+and single-line comments:
+
+```
+//single-line comments
+```
+
 
