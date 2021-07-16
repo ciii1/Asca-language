@@ -30,7 +30,7 @@ as i said, every values is treated the same in Asca, they can be divided into tw
 - memory-stored values : values stored in memory, like variables
 - constants : constant values, like `12`, `'a'` or `4.2`
 
-Constants are stored in the registers unless literal floats and literal strings, they are stored in read-only memory (`.data` section).
+Constants are stored in the registers except literal floats and literal strings, they are stored in read-only memory (`.data` section).
 
 With these in mind, let's continue with the syntax.
 
