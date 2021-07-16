@@ -3,10 +3,10 @@ Asca is a language that aims to remove all the unnecesary high level abstraction
 to let you gain more control of your program.
 It is compiled to nasm assembly
 
-## Documentation
+### Documentation
 you can find it [here](docs/docs.md)
 
-## TODO
+### TODO
 - [ ] Floating point values and `precise-operators`
 - [ ] Generate `while` and `for` loops
 - [ ] SysV ABI function call convention
