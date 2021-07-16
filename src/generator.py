@@ -12,17 +12,18 @@ class generator_state():
         self.label_count = 0
         self.function_list = function_list
     def add_data(self, value, size="db"):
-        self.data_section += "_DATA" + self.data_count + " " + size + " " +  value
         self.data_count += 1
-        return "_DATA" + self.data_count - 1 + "\n"
+        self.data_section += "_DATA" + str(self.data_count) + " " + size + " " + value + "\n"
+        return "_DATA" + str(self.data_count)
 
 class item():
-    def __init__(self, val, dtype, size, is_constant, in_memory):
+    def __init__(self, val, dtype, size, is_constant, in_memory, is_writeable=True):
         self.val = val
         self.type = dtype
         self.size = size
         self.in_memory = in_memory
         self.is_constant = is_constant
+        self.is_writeable = is_writeable
 
 def generate(ast, function_list = None, state = None):
     if state is None:
@@ -40,8 +41,9 @@ def generate(ast, function_list = None, state = None):
             generate_return(tree["content"], state)
     output = ""
     if len(state.data_section) > 0:
-        output += "section .data\n\n"
+        output += "section .data\n"
         output += state.data_section
+        output += "\n"
     output += "section .text\n"
     output += "\tglobal _start\n"
     output += state.subroutine_section
@@ -58,13 +60,37 @@ def generate_variable_declaration(ast, state):
     state.text_section += "sub rsp, " + str(size) + "\n"
     if ast["init"] is not None:
         init = generate_expression(ast["init"]["content"], state)
-        if init.in_memory:
-            state.text_section += "mov " + convert_64bit_reg("rax", init.size) + ", " + init.val + "\n"
-            init.val = "rax"
-        if init.size != "qword":
-            state.text_section += "movsx rax, " + convert_64bit_reg(init.val, init.size) + "\n"
-            init.size = "qword"
-        state.text_section += "mov " + ast["size"].val + " [rsp], " + convert_64bit_reg(init.val, ast["size"].val) + "\n"
+        if init.type == "FLOAT":
+            if init.in_memory:
+                if init.is_writeable: #if it's a variable
+                    if init.size == "qword":
+                        state.text_section += "movsd xmm0, " + init.val + "\n"
+                        init.val = "xmm0"
+                    elif init.size == "dword":
+                        state.text_section += "movss xmm0, " + init.val + "\n"
+                        init.val = "xmm0"
+                    else:
+                        state.text_section += "mov " + convert_64bit_reg("rax", init.size) + ", " + init.val + "\n"
+                        state.text_section += "movq xmm0, rax"
+                        init.val = "xmm0"
+                else:
+                    state.text_section += "movsd xmm0, " + init.val + "\n"
+                    init.val = "xmm0"
+            if ast["size"].val == "qword":
+                state.text_section += "movsd qword [rsp], xmm0 \n"
+            elif ast["size"].val == "dword":
+                state.text_section += "movss dword [rsp], xmm0 \n"
+            else:
+                state.text_section += "movq rax, xmm0 \n"
+                state.text_section += "mov " + ast["size"].val + " [rsp], " + convert_64bit_reg("rax", ast["size"].val) + "\n"
+        else:
+            if init.in_memory:
+                state.text_section += "mov " + convert_64bit_reg("rax", init.size) + ", " + init.val + "\n"
+                init.val = "rax"
+            if init.size != "qword":
+                state.text_section += "movsx rax, " + convert_64bit_reg(init.val, init.size) + "\n"
+                init.size = "qword"
+            state.text_section += "mov " + ast["size"].val + " [rsp], " + convert_64bit_reg(init.val, ast["size"].val) + "\n"
 
 def generate_function_declaration(ast, state):
     state.subroutine_section += "_" + ast["id"].val + ":\n"
@@ -104,218 +130,453 @@ def generate_expression(ast, state, res_register="rax", is_parsing_left=True):
  
 def generate_infix(ast, state, res_register, is_parsing_left): 
     if is_parsing_left:
-        left = generate_expression(ast[0], state, "r8", True)
-        right = generate_expression(ast[2], state, "r9", False)
+        if ast[1].tag == "PRECISE_RELATIONAL_OPERATOR" or\
+           ast[1].tag == "PRECISE_ASSIGNMENT_OPERATOR" or\
+           ast[1].tag == "PRECISE_ARITHMETICAL_OPERATOR" or\
+           ast[1].tag == "PRECISE_CONDITIONAL_OPERATOR":
+            left = generate_expression(ast[0], state, "xmm2", True)
+            right = generate_expression(ast[2], state, "xmm3", True)
+        else:
+            left = generate_expression(ast[0], state, "r8", True)
+            right = generate_expression(ast[2], state, "r9", False)
     else:
-        left = generate_expression(ast[0], state, "r11", True)
-        right = generate_expression(ast[2], state, "r9", False)
+        if ast[1].tag == "PRECISE_RELATIONAL_OPERATOR" or\
+           ast[1].tag == "PRECISE_ASSIGNMENT_OPERATOR" or\
+           ast[1].tag == "PRECISE_ARITHMETICAL_OPERATOR" or\
+           ast[1].tag == "PRECISE_CONDITIONAL_OPERATOR":
+            left = generate_expression(ast[0], state, "xmm4", True)
+            right = generate_expression(ast[2], state, "xmm3", True)
+        else:
+            left = generate_expression(ast[0], state, "r11", True)
+            right = generate_expression(ast[2], state, "r9", False)
+
     #check if both variables are constant, if yes then do a constant fold
     if right.is_constant and left.is_constant:
-        left_val = int(left.val)
-        right_val = int(right.val)
+        if left.type == "FLOAT":
+            left_val = float(left.val)
+        else:
+            left_val = int(left.val)
+        if right.type == "FLOAT":
+            right_val = float(right.val)
+        else:
+            right_val = int(right.val)
         if ast[1].val == "+":
-            return item(str(left_val + right_val), "INT", "qword", True, False)
+            return item(str(left_val + right_val), left.type, "qword", True, False)
         elif ast[1].val == "-":
-            return item(str(left_val - right_val), "INT", "qword", True, False)
+            return item(str(left_val - right_val), left.type, "qword", True, False)
         elif ast[1].val == "*":
-            return item(str(left_val * right_val), "INT", "qword", True, False)
+            return item(str(left_val * right_val), left.type, "qword", True, False)
         elif ast[1].val == "/":
-            return item(str(left_val / right_val), "INT", "qword", True, False)
+            return item(str(left_val / right_val), left.type, "qword", True, False)
         elif ast[1].val == ">":
-            return item(str(int(left_val > right_val)), "INT", "qword", True, False)
+            return item(str(int(left_val > right_val)), left.type, "qword", True, False)
         elif ast[1].val == "<":
-            return item(str(int(left_val < right_val)), "INT", "qword", True, False)
+            return item(str(int(left_val < right_val)), left.type, "qword", True, False)
         elif ast[1].val == ">=":
-            return item(str(int(left_val >= right_val)), "INT", "qword", True, False)
+            return item(str(int(left_val >= right_val)), left.type, "qword", True, False)
         elif ast[1].val == "<=":
-            return item(str(int(left_val <= right_val)), "INT", "qword", True, False)
+            return item(str(int(left_val <= right_val)), left.type, "qword", True, False)
         elif ast[1].val == "==":
-            return item(str(int(left_val == right_val)), "INT", "qword", True, False)
+            return item(str(int(left_val == right_val)), left.type, "qword", True, False)
         elif ast[1].val == "!=":
-            return item(str(int(left_val != right_val)), "INT", "qword", True, False)
+            return item(str(int(left_val != right_val)), left.type, "qword", True, False)
         elif ast[1].val == "||":
-            return item(str(left_val or right_val), "INT", "qword", True, False)
+            return item(str(left_val or right_val), left.type, "qword", True, False)
         elif ast[1].val == "&&":
-            return item(str(left_val and right_val), "INT", "qword", True, False)
+            return item(str(left_val and right_val), left.type, "qword", True, False)
+        elif ast[1].val == ":+":
+            return item(str(left_val + right_val), left.type, "qword", True, False)
+        elif ast[1].val == ":-":
+            return item(str(left_val - right_val), left.type, "qword", True, False)
+        elif ast[1].val == ":*":
+            return item(str(left_val * right_val), left.type, "qword", True, False)
+        elif ast[1].val == ":/":
+            return item(str(left_val / right_val), left.type, "qword", True, False)
+        elif ast[1].val == ":>":
+            return item(str(int(left_val > right_val)), left.type, "qword", True, False)
+        elif ast[1].val == ":<":
+            return item(str(int(left_val < right_val)), left.type, "qword", True, False)
+        elif ast[1].val == ":>=":
+            return item(str(int(left_val >= right_val)), left.type, "qword", True, False)
+        elif ast[1].val == ":<=":
+            return item(str(int(left_val <= right_val)), left.type, "qword", True, False)
+        elif ast[1].val == ":==":
+            return item(str(int(left_val == right_val)), left.type, "qword", True, False)
+        elif ast[1].val == ":!=":
+            return item(str(int(left_val != right_val)), left.type, "qword", True, False)
+        elif ast[1].val == ":||":
+            return item(str(left_val or right_val), left.type, "qword", True, False)
+        elif ast[1].val == ":&&":
+            return item(str(left_val and right_val), left.type, "qword", True, False)
     else:
-        if ast[1].tag != "ASSIGNMENT_OPERATOR" and (left.is_constant or left.in_memory):
-            if right.val == "rax":
-                state.text_section += "mov rbx, rax \n"
-                right.val = "rbx"
-            state.text_section += "mov " + convert_64bit_reg("rax", left.size) + ", " + left.val +"\n"
-            left.val = "rax"
-        if ast[1].val == "+":
-            if right.in_memory:
-                state.text_section += "add " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
-            else:
-                state.text_section += "add " + left.val + ", " + right.val + "\n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "-":
-            if right.in_memory:
-                state.text_section += "sub " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
-            else:
-                state.text_section += "sub " + left.val + ", " + right.val + "\n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "*":
-            if left.val != "rax":
-                if right.val == "rax":
-                    state.text_section += "mov r10, rax \n"
-                    right.val = "r10"
-                state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + convert_64bit_reg(left.val, left.size) + "\n"
-                left.val = "rax"
-            if right.is_constant:
-                state.text_section += "mov " + convert_64bit_reg("rbx", right.size) + ", " + right.val + "\n"
-                right.val = "rbx"
-            if not right.is_constant and not right.in_memory:
-                right.val = convert_64bit_reg(right.val, right.size)
-            state.text_section += "mul " + right.size + " " + right.val + "\n"
-            if left.val != res_register: 
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "/":
-            if left.val != "rax":
-                if right.val == "rax":
-                    state.text_section += "mov r10, rax \n"
-                    right.val = "r10"
-                state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + convert_64bit_reg(left.val, left.size) + "\n"
-                left.val = "rax"
-            if right.is_constant:
-                state.text_section += "mov " + convert_64bit_reg("rbx", right.size) + ", " + right.val + "\n"
-                right.val = "rbx"
-            state.text_section += "mov rdx, 0\n"
-            if not right.is_constant and not right.in_memory:
-                right.val = convert_64bit_reg(right.val, right.size)
-            state.text_section += "div " + right.size + " " + right.val + "\n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "<":
-            if right.in_memory:
-                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
-            else:
-                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
-            state.text_section += "mov rbx, 1\n"
-            state.text_section += "mov " + left.val  + ", 0\n"
-            state.text_section += "cmovl " + left.val + ", rbx \n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "<=":
-            if right.in_memory:
-                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
-            else:
-                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
-            state.text_section += "mov rbx, 1\n"
-            state.text_section += "mov " + left.val  + ", 0\n"
-            state.text_section += "cmovle " + left.val + ", rbx \n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == ">":
-            if right.in_memory:
-                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
-            else:
-                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
-            state.text_section += "mov rbx, 1\n"
-            state.text_section += "mov " + left.val  + ", 0\n"
-            state.text_section += "cmovg " + left.val + ", rbx \n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == ">=":
-            if right.in_memory:
-                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
-            else:
-                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
-            state.text_section += "mov rbx, 1\n"
-            state.text_section += "mov " + left.val  + ", 0\n"
-            state.text_section += "cmovge " + left.val + ", rbx \n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "==":
-            if right.in_memory:
-                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
-            else:
-                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
-            state.text_section += "mov rbx, 1\n"
-            state.text_section += "mov " + left.val  + ", 0\n"
-            state.text_section += "cmove " + left.val + ", rbx \n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "!=":
-            if right.in_memory:
-                state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
-            else:
-                state.text_section += "cmp " + left.val + ", " + right.val + "\n"
-            state.text_section += "mov rbx, 1\n"
-            state.text_section += "mov " + left.val  + ", 0\n"
-            state.text_section += "cmovne " + left.val + ", rbx \n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "||":
-            if right.is_constant:
+        if ast[1].tag == "PRECISE_RELATIONAL_OPERATOR" or\
+           ast[1].tag == "PRECISE_ASSIGNMENT_OPERATOR" or\
+           ast[1].tag == "PRECISE_ARITHMETICAL_OPERATOR" or\
+           ast[1].tag == "PRECISE_CONDITIONAL_OPERATOR":
+            if ast[1].tag != "PRECISE_ASSIGNMENT_OPERATOR" and left.in_memory:
+                if right.val == "xmm0":
+                    state.text_section += "movssdd xmm1, xmm0\n"
+                    right.val = "xmm1"
+                if left.size == "qword":
+                    state.text_section += "movsd xmm0, qword " + left.val + "\n"
+                elif left.size == "dword":
+                    state.text_section += "movss xmm0, dword " + left.val + "\n"
+                else:
+                    state.text_section += "mov rbx, " + left.val +"\n"
+                    state.text_section += "movq xmm0, rbx\n"
+                left.val = "xmm0"
+                left.size = "qword"
+            if right.size != "qword" and right.size != "dword":
                 state.text_section += "mov rbx, " + right.val + "\n"
-                right.val = "rbx"
-            state.text_section += "cmp " + right.val + ", 0\n"
-            state.text_section += "cmovne " + left.val + ", " + right.val + " \n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "&&":
-            if right.is_constant:
-                state.text_section += "mov rbx, " + right.val + "\n"
-                right.val = "rbx"
-            state.text_section += "cmp " + right.val + ", 0\n"
-            state.text_section += "cmove " + left.val + ", " + right.val + " \n"
-            if left.val != res_register:
-                state.text_section += "mov " + res_register + ", " + left.val + "\n"
-                left.val = res_register
-            return item(res_register, "INT", left.size, False, False)
-        elif ast[1].val == "=":
-            if right.in_memory:
-                state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
-                right.val = "rbx"
-            if left.size == "qword" and right.size != "qword":
-                state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
+                state.text_section += "movq xmm1, rbx \n"
+                right.val = "xmm1"
                 right.size = "qword"
-            state.text_section += "mov " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
-            return item(left.val, "INT", left.size, False, True) 
-        elif ast[1].val == "+=":
-            if right.in_memory:
-                state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
-                right.val = "rbx"
-            if left.size == "qword" and right.size != "qword":
-                state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
-                right.size = "qword"
-            state.text_section += "add " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
-            return item(left.val, "INT", left.size, False, True) 
-        elif ast[1].val == "-=":
-            if right.in_memory:
-                state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
-                right.val = "rbx"
-            if left.size == "qword" and right.size != "qword":
-                state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
-                right.size = "qword"
-            state.text_section += "sub " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
-            return item(left.val, "INT", left.size, False, True) 
+                right.in_memory = False
+            if ast[1].val == ":+":
+                if right.size == "qword":
+                    state.text_section += "addsd " + left.val + ", qword " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "addss " + left.val + ", dword " + right.val + "\n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":-":
+                if right.size == "qword":
+                    state.text_section += "subsd " + left.val + ", " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "subss " + left.val + ", " + right.val + "\n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":*":
+                if right.size == "qword":
+                    state.text_section += "mulsd " + left.val + ", " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "mulss " + left.val + ", " + right.val + "\n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":/":
+                if right.size == "qword":
+                    state.text_section += "divsd " + left.val + ", " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "divss " + left.val + ", " + right.val + "\n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":<":
+                if right.size == "qword":
+                    state.text_section += "ucomisd " + left.val + ", " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "ucomiss " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                left.val = "rax"
+                left.type = "INT"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovl " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":<=":
+                if right.size == "qword":
+                    state.text_section += "ucomisd " + left.val + ", " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "ucomiss " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                left.val = "rax"
+                left.type = "INT"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovle " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":>":
+                if right.size == "qword":
+                    state.text_section += "ucomisd " + left.val + ", " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "ucomiss " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                left.val = "rax"
+                left.type = "INT"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovg " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":>=":
+                if right.size == "qword":
+                    state.text_section += "ucomisd " + left.val + ", " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "ucomiss " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                left.val = "rax"
+                left.type = "INT"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovge " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":==":
+                if right.size == "qword":
+                    state.text_section += "ucomisd " + left.val + ", " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "ucomiss " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                left.val = "rax"
+                left.type = "INT"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmove " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":!=":
+                if right.size == "qword":
+                    state.text_section += "ucomisd " + left.val + ", " + right.val + "\n"
+                elif right.size == "dword":
+                    state.text_section += "ucomiss " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                left.val = "rax"
+                left.type = "INT"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovne " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":||":
+                if right.in_memory:
+                    state.text_section += "mov " + convert_64bit_reg("rbx", right.val) + ", " + right.val + "\n"
+                    state.text_section += "movq xmm1, rbx\n"
+                    right.val = "xmm1"
+                state.text_section += "por " + left.val + ", " + right.val + "\n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":&&":
+                if right.in_memory:
+                    state.text_section += "mov " + convert_64bit_reg("rbx", right.val) + ", " + right.val + "\n"
+                    state.text_section += "movq xmm1, rbx\n"
+                    right.val = "xmm1"
+                state.text_section += "pand " + left.val + ", " + right.val + "\n"
+                if left.val != res_register:
+                    state.text_section += "movq " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ":=":
+                if right.in_memory:
+                    if right.size == "qword":
+                        state.text_section += "movsd xmm1, qword " + right.val + "\n"
+                    elif right.size == "dword":
+                        state.text_section += "movss xmm1, dword " + right.val + "\n"
+                    else:
+                        state.text_section += "mov " + convert_64bit_reg("rax", right.size) + ", " + right.size + " " + right.val +"\n"
+                        state.text_section += "movq xmm1, rax\n"
+                    right.val = "xmm1"
+                if left.size == "qword":
+                    state.text_section += "movsd qword " + left.val + ", " + right.val + "\n"
+                elif left.size == "dword":
+                    state.text_section += "movss dword " + left.val + ", " + right.val + "\n"
+                else:
+                    state.text_section += "movq rbx, " + right.val + "\n"
+                    state.text_section += "mov " + left.size + " " + left.val + ", " + convert_64bit_reg("rbx", left.size) + "\n"
+                return item(left.val, left.type, left.size, False, True) 
+                if right.in_memory:
+                    state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
+                    right.val = "rbx"
+                if left.size == "qword" and right.size != "qword":
+                    state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
+                    right.size = "qword"
+                state.text_section += "sub " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
+                return item(left.val, left.type, left.size, False, True)
+        else:
+            if ast[1].tag != "ASSIGNMENT_OPERATOR" and (left.is_constant or left.in_memory):
+                if right.val == "rax":
+                    state.text_section += "mov rbx, rax \n"
+                    right.val = "rbx"
+                state.text_section += "mov " + convert_64bit_reg("rax", left.size) + ", " + left.val +"\n"
+                left.val = "rax"
+            if ast[1].val == "+":
+                if right.in_memory:
+                    state.text_section += "add " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+                else:
+                    state.text_section += "add " + left.val + ", " + right.val + "\n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "-":
+                if right.in_memory:
+                    state.text_section += "sub " + right.size + " " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+                else:
+                    state.text_section += "sub " + left.val + ", " + right.val + "\n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "*":
+                if left.val != "rax":
+                    if right.val == "rax":
+                        state.text_section += "mov r10, rax \n"
+                        right.val = "r10"
+                    state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + convert_64bit_reg(left.val, left.size) + "\n"
+                    left.val = "rax"
+                if right.is_constant:
+                    state.text_section += "mov " + convert_64bit_reg("rbx", right.size) + ", " + right.val + "\n"
+                    right.val = "rbx"
+                if not right.is_constant and not right.in_memory:
+                    right.val = convert_64bit_reg(right.val, right.size)
+                state.text_section += "mul " + right.size + " " + right.val + "\n"
+                if left.val != res_register: 
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "/":
+                if left.val != "rax":
+                    if right.val == "rax":
+                        state.text_section += "mov r10, rax \n"
+                        right.val = "r10"
+                    state.text_section += "mov " + convert_64bit_reg("rax", left.size) +", " + convert_64bit_reg(left.val, left.size) + "\n"
+                    left.val = "rax"
+                if right.is_constant:
+                    state.text_section += "mov " + convert_64bit_reg("rbx", right.size) + ", " + right.val + "\n"
+                    right.val = "rbx"
+                state.text_section += "mov rdx, 0\n"
+                if not right.is_constant and not right.in_memory:
+                    right.val = convert_64bit_reg(right.val, right.size)
+                state.text_section += "div " + right.size + " " + right.val + "\n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "<":
+                if right.in_memory:
+                    state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+                else:
+                    state.text_section += "cmp " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovl " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "<=":
+                if right.in_memory:
+                    state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+                else:
+                    state.text_section += "cmp " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovle " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ">":
+                if right.in_memory:
+                    state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+                else:
+                    state.text_section += "cmp " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovg " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == ">=":
+                if right.in_memory:
+                    state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+                else:
+                    state.text_section += "cmp " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovge " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "==":
+                if right.in_memory:
+                    state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+                else:
+                    state.text_section += "cmp " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmove " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "!=":
+                if right.in_memory:
+                    state.text_section += "cmp " + convert_64bit_reg(left.val, right.size) + ", " + right.val + "\n"
+                else:
+                    state.text_section += "cmp " + left.val + ", " + right.val + "\n"
+                state.text_section += "mov rbx, 1\n"
+                state.text_section += "mov " + left.val  + ", 0\n"
+                state.text_section += "cmovne " + left.val + ", rbx \n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "||":
+                if right.is_constant:
+                    state.text_section += "mov rbx, " + right.val + "\n"
+                    right.val = "rbx"
+                state.text_section += "cmp " + right.val + ", 0\n"
+                state.text_section += "cmovne " + left.val + ", " + right.val + " \n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "&&":
+                if right.is_constant:
+                    state.text_section += "mov rbx, " + right.val + "\n"
+                    right.val = "rbx"
+                state.text_section += "cmp " + right.val + ", 0\n"
+                state.text_section += "cmove " + left.val + ", " + right.val + " \n"
+                if left.val != res_register:
+                    state.text_section += "mov " + res_register + ", " + left.val + "\n"
+                    left.val = res_register
+                return item(res_register, left.type, left.size, False, False)
+            elif ast[1].val == "=":
+                if right.in_memory:
+                    state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
+                    right.val = "rbx"
+                if left.size == "qword" and right.size != "qword":
+                    state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
+                    right.size = "qword"
+                state.text_section += "mov " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
+                return item(left.val, left.type, left.size, False, True) 
+            elif ast[1].val == "+=":
+                if right.in_memory:
+                    state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
+                    right.val = "rbx"
+                if left.size == "qword" and right.size != "qword":
+                    state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
+                    right.size = "qword"
+                state.text_section += "add " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
+                return item(left.val, left.type, left.size, False, True) 
+            elif ast[1].val == "-=":
+                if right.in_memory:
+                    state.text_section += "mov " + convert_64bit_reg("rbx", size_to_number(right.size)) + ", " + right.val + "\n"
+                    right.val = "rbx"
+                if left.size == "qword" and right.size != "qword":
+                    state.text_section += "movsx " + right.val + ", " + convert_64bit_reg(right.val, right.size) + "\n"
+                    right.size = "qword"
+                state.text_section += "sub " + left.size + " " + left.val + ", " + convert_64bit_reg(right.val, left.size) + "\n"
+                return item(left.val, left.type, left.size, False, True)
 
 def generate_unary(ast, state):
     if ast[0].val == "-" or ast[0].val == "+":
@@ -324,7 +585,7 @@ def generate_unary(ast, state):
             state.text_section += "mov r13, " + operand.val + "\n"
             operand.val = "r13"
         state.text_section += "neg " + operand.val + "\n"
-        return item(operand.val, "INT", "qword", False, False)
+        return item(operand.val, operand.type, "qword", False, False)
     elif ast[0].val == "$":
         operand = generate_expression(ast[2], state)
         if operand.is_constant or operand.in_memory:
@@ -337,6 +598,16 @@ def generate_unary(ast, state):
             state.text_section += "lea r13, " + operand.val + "\n"
             operand.val = "r13"           
         return item(operand.val, "INT", "qword", True, False) 
+    elif ast[0].val == "!":
+        operand = generate_expression(ast[1], state)
+        if operand.is_constant or operand.in_memory:
+            state.text_section += "mov r13, " + operand.val + "\n"
+            operand.val = "r13"
+        state.text_section += "cmp " + operand.val + ", 0\n"
+        state.text_section += "mov " + operand.val + ", 0\n"
+        state.text_section += "mov rbx, 1\n"
+        state.text_section += "cmove " + operand.val + ", rbx\n"
+        return item(operand.val, "INT", "qword", False, False)
 
 def generate_value(ast, state):
     if ast["context"] == "identifier":
@@ -345,8 +616,11 @@ def generate_value(ast, state):
         return generate_function_call(ast, state)
     elif ast["context"] == "constant":
         if ast["value"].tag == "STRING":
-            ast["value"].val = state.add_data(ast["value"].val, "db")
-            return item(ast["value"].val, ast["value"].tag, "byte", False, True)
+            val = state.add_data(ast["value"].val + ", 0", "db")
+            return item("[" + val + "]", ast["value"].tag, "byte", False, True, False)
+        elif ast["value"].tag == "FLOAT":
+            val = state.add_data(ast["value"].val, "dq")
+            return item("[" + val + "]", ast["value"].tag, "qword", False, True, False)
         else:
             return to_int(item(ast["value"].val, ast["value"].tag, "qword", True, False))
 
@@ -456,7 +730,7 @@ def to_int(token):
         val = int(token.val)
     elif token.type == "FLOAT":
         #TODO:ADD FLOAT SUPPORT
-        val = int(token.val)
+        val = float(token.val)
     elif token.type == "BOOL":
         if token.val == "true":
             val = 1
@@ -563,7 +837,7 @@ def convert_64bit_reg(reg, size):
 		    	4:"r15d",
 		    	2:"r15w",
 		    	1:"r15b"
-		    }
+            }
     }
     res = size_to_number(size)
     if res is not None:
