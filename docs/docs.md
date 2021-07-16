@@ -32,8 +32,6 @@ With these in mind, let's continue with the syntax.
 
 ### Types
 
-As mentioned before, types are just things that restrict you from doing operations with different types. You can declare it with the `type` keyword:
-=======
 As mentioned before, types are just things that strict you from doing operations with different types. You can declare it with the `type` keyword:
 ```
 type int1;
@@ -147,9 +145,6 @@ You should assign a pointer that points to the string literal "hello":
 ```
 qword a:ptr = @"hello";
 ```
-this (for me at least) gives you more consistency than C where variables are not clear wether it's stored in .data section or in the stack,
-but in Asca, every variables is stored on the stack.
-
 ### Loops
 there are two types of loop in asca: `while` and `for` loop.
 their syntax is the same with C loops' syntax:
