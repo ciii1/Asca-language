@@ -2,12 +2,12 @@
 ### About
 
 Asca is a language that aims to remove all the unnecesary high level abstractions
-to let you gain control of your program.
+to let you gain more control of your program.
 
 ### Basics
 
 #### Principles
-There are principles that you need to remember while writing asca:
+There are two main principles that asca operates on:
 - every value is treated the same. Meaning that a float will be treated the same as an int.
 - a type is used to differentiate those values; it stricts you from doing operations on different type.
 
@@ -18,19 +18,17 @@ type float; //declare a type called float
 qword a:float := 1.2;
 a := 13.2;
 ```
-notice the `:=` and `:+=` operator? It's called precise-assigment operator (i know it's a silly name but i can't think of a better name, sorry) you can
-use it for floating point values, it uses the `movss`/`movsd`/`movq` (depends to the variable size) instruction to assign to a memory while `=` uses the `mov` instruction. You can, for sure, use the the `=` operator for floats but you wouldn't get the precision you'd have with `:=`, but sometimes, that's what you want, so Asca allows you to do that.
+notice the `:=` operator? It's called precise-assigment operator. You can use it for floating point values, it uses the `movss`/`movsd`/`movq` (depends to the variable size) instruction to assign to a memory while `=` uses the `mov` instruction. You can, for sure, use the the `=` operator for floats but you wouldn't get the precision you'd have with `:=`, but sometimes, that's what you want, so Asca allows you to do that.
 
 #### Values
 
-as i said, every value is the same in Asca, but values have types too (please don't get confused, read a little more):
+as i said, every values is treated the same in Asca, they can be divided into two categories:
 - memory-stored values : values stored in memory, like variables
 - constants : constant values, like `12`, `'a'` or `4.2`
 
-Constants are stored in the registers unless two: literal floats and literal strings, they are stored in read-only memory (`.data` section).
-*To be honest, you don't really need to know this, but the compiler will give you error messages using these terms, so it's worth telling you this.*
+Constants are stored in the registers unless literal floats and literal strings, they are stored in read-only memory (`.data` section).
 
-With these in mind, let's continue.
+With these in mind, let's continue with the syntax.
 
 ### Types
 
