@@ -209,8 +209,8 @@ Operator | Precedence | Description                                             
 `+=`     | 1          | add the value on a memory address by right operand                  |
 `-=`     | 1          | sub the value on a memory address by right operand                  |
 `:=`     | 1          | assign double or single precision floating point on the right operand to the memory address on the left operand, note that the right operand must be a memory-stored value |
-`||`     | 2          | do an or bitwise operation                                          |
-`:||`    | 2          | do an or bitwise operation (equals to `por` on x86), note that both left and right operand has to be a memory-stored value |
+`\|\|`     | 2          | do an or bitwise operation                                          |
+`:\|\|`    | 2          | do an or bitwise operation (equals to `por` on x86), note that both left and right operand has to be a memory-stored value |
 `&&`     | 3          | do an and bitwise operation.
 `:&&`    | 3          | do an and bitwise operation (equals to `pand` on x86), note that both left and right operand has to be a memory-stored value |
 `>`      | 4          | compare left and right operand, return `true` if left is bigger, otherwise, `false` |
