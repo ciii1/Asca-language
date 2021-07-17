@@ -205,10 +205,6 @@ As mentioned, Asca has many operators, here's the full list:
 
 Operator | Precedence | Description                                                         |
 -------- | ---------- | ------------------------------------------------------------------- |
-`@`      | 0(unary)   | get the memory address of a memory-stored value                     |
-`$(size)`| 0(unary)   | get the value of a memory address                                   |
-`-`/`+`  | 0(unary)   | negate the operand                                                  |
-`!`      | 0(unary)   | return `false` if the operand is a non-zero value, otherwise, `true`|
 `=`	 | 1          | assign the right operand to the memory address on the left operand  |
 `+=`     | 1          | add the value on a memory address by right operand                  |
 `-=`     | 1          | sub the value on a memory address by right operand                  |
@@ -235,5 +231,10 @@ Operator | Precedence | Description                                             
 `:-`     | 5          | sub a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
 `*`      | 6          | mul                                                                |
 `/`      | 6	      | sub                                                                |
-`:*`     | 7          | mul a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
-`:/`     | 7          | div a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
+`:*`     | 6          | mul a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
+`:/`     | 6          | div a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
+`@`      | 7(unary)   | get the memory address of a memory-stored value                     |
+`$(size)`| 7(unary)   | get the value of a memory address                                   |
+`-`/`+`  | 7(unary)   | negate the operand                                                  |
+`!`      | 7(unary)   | return `false` if the operand is a non-zero value, otherwise, `true`|
+
