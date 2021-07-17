@@ -26,7 +26,8 @@ as i said, every values is treated the same in Asca, they can be divided into tw
 - memory-stored values : values stored in memory, like variables
 - constants : constant values, like `12`, `'a'` or `4.2`
 
-Constants are stored in the registers except literal floats and literal strings, they are stored in read-only memory (`.data` section).
+Constants are stored in the registers except literal floats and literal strings, they are stored in read-only memory (`.data` section), thus literal floats
+and literal strings are memory-stored values.
 
 With these in mind, let's continue with the syntax.
 
@@ -106,7 +107,7 @@ dword[a] b:int;
 
 In asca, pointers are just numbers that holds the address of a memory.
 Nothing special with it.
-To get an address of a value, you can use the @ operator:
+To get address of a value, you can use the @ operator:
 ```
 dword a:int;
 qword b:ptr;
@@ -197,3 +198,21 @@ and single-line comments:
 ```
 //single-line comments
 ```
+
+### Operators
+
+As mentioned, Asca has many operators, here's the full list:
+
+Operator | Precedence | Description                                                         |
+-------- | ---------- | ------------------------------------------------------------------- |
+`=`	 | 1          | assign the right operand to the memory address on the left operand  |
+`+=`     | 1          | add the value on a memory address by right operand                  |
+`-=`     | 1          | sub the value on a memory address by right operand                  |
+`:=`     | 1          | assign double or single precision floating point on the right operand to the memory address on the left operand, note that the right operand must be a memory-stored value |
+`||`     | 2          | do an or bitwise operation                                          |
+`:||`    | 2          | do an or bitwise operation (equals to `por` on x86), note that both left and right operand has to be a memory-stored value |
+`&&`     | 3          | do an and bitwise operation.
+`:&&`    | 3          | do an and bitwise operation (equals to `pand` on x86), note that both left and right operand has to be a memory-stored value |
+`>`      | 4          | compare left and right operand, return `true` if left is bigger, otherwise, `false` |
+`>=      | 4          | compare left and right operand, return `true` if left is bigger or equal to right, otherwise `false` |
+`<`      | 4          | compare left and right operand, return `true` if left is smaller, otherwise `false` |
