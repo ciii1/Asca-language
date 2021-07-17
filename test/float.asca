@@ -3,5 +3,6 @@ type Int;
 
 word a:Float := 14.1;
 qword b:Float := 14.1;
+a := (a :+ b) :* 1.2;
 a :== b;
 
