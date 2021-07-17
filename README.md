@@ -12,7 +12,6 @@ you can find it [here](docs/docs.md)
 - [ ] SysV ABI function call convention
 - [ ] Link with C libraries
 - [ ] Refactor the whole source code                
-- [ ] Better parsing method
 
 
 
