@@ -1,20 +1,10 @@
-/*
-this program demonstrates how for loops work on asca
-*/
-type int;
+type Int;
 
-qword i:int;
-for(i=0; i < 10; i+=1){
-	for(qword x:int = 0; x < 10; x+=1) { //this thing work too
-		print(@"hi");
+func power_to(qword x:Int, qword y:Int):Int {
+	for(qword i:Int = 0; i < y; i+=1) {
+		x = x * x;
+		i += 1;	
 	}
+	return x;
 }
-
-for(i=0; i < 10; i+=1){
-	qword i:int = 10;
-	while(i < 10){
-		print(@"hello");
-		
-	}
-}
-
+dword res:Int = power_to(5, 3);

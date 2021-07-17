@@ -41,6 +41,8 @@ def generate(ast, function_list = None, state = None):
             generate_if(tree["content"], state)
         elif tree["context"] == "while":
             generate_while(tree["content"], state)
+        elif tree["context"] == "for" :
+            generate_for(tree["content"], state)
         elif tree["context"] == "return":
             generate_return(tree["content"], state)
         elif tree["context"] == "break":
@@ -666,6 +668,7 @@ def generate_function_call(ast, state):
     state.text_section += "call _" + ast["value"].val + "\n"
     if len(ast["parameters"]) != 0:
         state.text_section += "add rsp, " + str(total_argument_size) + "\n"
+        state.stack_position -= total_argument_size
     return item("rax", "INT", "qword", False, False)
 
 def generate_if(ast, state):
@@ -747,7 +750,9 @@ def generate_while(ast, state):
     local = copy.deepcopy(state)
     local.text_section = ""
     local.continue_label = while_label
-    local.break_label = end_label
+    break_label = "_BREAK" + str(state.label_count)
+    state.label_count += 1
+    local.break_label = break_label
     base_stack_position = local.stack_position
     generate(ast["body"], state=local)
     state.text_section += local.text_section
@@ -755,7 +760,53 @@ def generate_while(ast, state):
     if local.stack_position - base_stack_position != 0:
         state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
     state.text_section += "jmp " + while_label + "\n" 
+    if local.stack_position - base_stack_position != 0:
+        state.text_section += break_label + ":\n"
+        state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
+    state.text_section += end_label + ":\n"
 
+def generate_for(ast, state):
+    #generate `for` head
+    if ast["setup"]["context"] == "variable_declaration":
+        setup = generate_variable_declaration(ast["setup"]["content"], state)
+    else:
+        setup = generate_expression(ast["setup"]["content"], state)
+    while_label = "_FOR" + str(state.label_count)
+    state.text_section += while_label + ":\n"
+    if ast["condition"]["context"] == "variable_declaration":
+        condition = generate_variable_declaration(ast["condition"]["content"], state)
+    else:
+        condition = generate_expression(ast["condition"]["content"], state)
+    if condition.is_constant:
+        state.text_section += "mov rax, " + condition.val + "\n" 
+        condition.val = "rax"
+    state.label_count += 1
+    state.text_section += "cmp " + condition.val + ", 0\n"
+    end_label = "_END" + str(state.label_count)
+    state.label_count += 1
+    state.text_section += "je " + end_label + "\n"
+ 
+    #generate `for` body
+    local = copy.deepcopy(state)
+    local.text_section = ""
+    local.continue_label = while_label
+    break_label = "_BREAK" + str(state.label_count)
+    local.break_label = break_label
+    state.label_count += 1
+    base_stack_position = local.stack_position
+    generate(ast["body"], state=local)
+    state.text_section += local.text_section
+    state.label_count += local.label_count
+    if ast["increment"] == "variable_declaration":
+        increment = generate_variable_declaration(ast["increment"]["content"], state)
+    else:
+        increment = generate_expression(ast["increment"]["content"], state)
+    if local.stack_position - base_stack_position != 0:
+        state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
+    state.text_section += "jmp " + while_label + "\n" 
+    if local.stack_position - base_stack_position != 0:
+        state.text_section += break_label + ":\n"
+        state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
     state.text_section += end_label + ":\n"
 
 def generate_continue(ast, state):

@@ -136,14 +136,14 @@ def analyze_while(ast, state):
     return state
 
 def analyze_for(ast, state):
-    if analyze([ast["setup"]], state).is_error:
-        return None
-    if analyze([ast["condition"]], state).is_error:
-        return None
-    if analyze([ast["increment"]], state).is_error:
-        return None
     local = copy.deepcopy(state)
     local.is_in_loop = True
+    if analyze([ast["setup"]], local).is_error:
+        return None
+    if analyze([ast["condition"]], local).is_error:
+        return None
+    if analyze([ast["increment"]], local).is_error:
+        return None
     if ast["body"] is not None:
         if analyze(ast["body"], local).is_error:
             return None
@@ -300,7 +300,8 @@ def analyze_infix(ast, state):
 def analyze_unary(ast, state):
     operator = ast[0]
     if operator.val == "-" or\
-       operator.val == "+":
+       operator.val == "+" or\
+       operator.val == "!":
         operand = analyze_expression(ast[1], state)
         if operand is None:
             return None

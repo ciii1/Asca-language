@@ -645,7 +645,8 @@ def parse_unary(state):
 
     if state.get_token().val == "@" or\
        state.get_token().val == "-" or\
-       state.get_token().val == "+":
+       state.get_token().val == "+" or\
+       state.get_token().val == "!":
         output["content"].append(state.get_token())
     elif state.get_token().val == "$":
         output["content"].append(state.get_token())
