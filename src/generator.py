@@ -60,7 +60,7 @@ def generate_variable_declaration(ast, state):
     state.text_section += "sub rsp, " + str(size) + "\n"
     if ast["init"] is not None:
         init = generate_expression(ast["init"]["content"], state)
-        if init.type == "FLOAT":
+        if ast["init-sign"].val == ":=":
             if init.in_memory:
                 if init.is_writeable: #if it's a variable
                     if init.size == "qword":
@@ -149,7 +149,6 @@ def generate_infix(ast, state, res_register, is_parsing_left):
         else:
             left = generate_expression(ast[0], state, "r11", True)
             right = generate_expression(ast[2], state, "r9", False)
-
     #check if both variables are constant, if yes then do a constant fold
     if right.is_constant and left.is_constant:
         if left.type == "FLOAT":
