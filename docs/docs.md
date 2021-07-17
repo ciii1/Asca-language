@@ -205,6 +205,10 @@ As mentioned, Asca has many operators, here's the full list:
 
 Operator | Precedence | Description                                                         |
 -------- | ---------- | ------------------------------------------------------------------- |
+`@`      | 0(unary)   | get the memory address of a memory-stored value                     |
+`$(size)`| 0(unary)   | get the value of a memory address                                   |
+`-`/`+`  | 0(unary)   | negate the operand                                                  |
+`!`      | 0(unary)   | return `false` if the operand is a non-zero value, otherwise, `true`|
 `=`	 | 1          | assign the right operand to the memory address on the left operand  |
 `+=`     | 1          | add the value on a memory address by right operand                  |
 `-=`     | 1          | sub the value on a memory address by right operand                  |
@@ -214,5 +218,22 @@ Operator | Precedence | Description                                             
 `&&`     | 3          | do an and bitwise operation.
 `:&&`    | 3          | do an and bitwise operation (equals to `pand` on x86), note that both left and right operand has to be a memory-stored value |
 `>`      | 4          | compare left and right operand, return `true` if left is bigger, otherwise, `false` |
-`>=      | 4          | compare left and right operand, return `true` if left is bigger or equal to right, otherwise `false` |
+`>=`     | 4          | compare left and right operand, return `true` if left is bigger or equal to right, otherwise `false` |
 `<`      | 4          | compare left and right operand, return `true` if left is smaller, otherwise `false` |
+`<=`     | 4          | compare left and right operand, return `true` if left is smaller or equal to right, otherwise `false` |
+`==`     | 4          | compare left and right operand, return `true` if both operands are equal, otherwise `false` |
+`!=`     | 4          | compare left and right operand, return `true` if both operands are not equal, otherwise `false` |
+`:>`     | 4          | compare a scalar single/double precision floating point from left and right operand, return `true` if left is bigger, otherwise, `false` |
+`:>=`    | 4          | compare a scalar single/double precision floating point from left and right operand, return `true` if left is bigger or equal to right, otherwise `false` |
+`:<`     | 4          | compare a scalar single/double precision floating point from left and right operand, return `true` if left is smaller, otherwise `false` |
+`:<=`    | 4          | compare a scalar single/double precision floating point from left and right operand, return `true` if left is smaller or equal to right, otherwise `false` |
+`:==`    | 4          | compare a scalar single/double precision floating point from left and right operand, return `true` if both operands are equal, otherwise `false` |
+`:!=`    | 4          | compare a scalar single/double precision floating point from left and right operand, return `true` if both operands are not equal, otherwise `false` |
+`+`	 | 5          | add								   |
+`-`      | 5          | sub								   |
+`:+`     | 5          | add a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
+`:-`     | 5          | sub a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
+`*`      | 6          | mul                                                                |
+`/`      | 6	      | sub                                                                |
+`:*`     | 5          | mul a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
+`:/`     | 5          | div a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
