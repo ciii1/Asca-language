@@ -235,5 +235,5 @@ Operator | Precedence | Description                                             
 `:-`     | 5          | sub a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
 `*`      | 6          | mul                                                                |
 `/`      | 6	      | sub                                                                |
-`:*`     | 5          | mul a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
-`:/`     | 5          | div a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
+`:*`     | 7          | mul a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
+`:/`     | 7          | div a scalar single/double precision floating point from left and right operand with the left operand, note that both operands need to be a memory-stored value|
