@@ -4,13 +4,15 @@ class generator_state():
     def __init__(self, function_list):
         self.stack_position = 0;
         self.base_stack_position = 0; #stores the stack position before we're entering a function
-        self.variable_list = {} #this one stores variables positions
+        self.variable_list = {} #this one stores variable positions
         self.text_section = ""
         self.data_section = ""
         self.subroutine_section = ""
         self.data_count = 0
         self.label_count = 0
         self.function_list = function_list
+        self.continue_label = ""
+        self.break_label = ""
     def add_data(self, value, size="db"):
         self.data_count += 1
         self.data_section += "_DATA" + str(self.data_count) + " " + size + " " + value + "\n"
@@ -37,8 +39,14 @@ def generate(ast, function_list = None, state = None):
             generate_function_declaration(tree["content"], state)
         elif tree["context"] == "if":
             generate_if(tree["content"], state)
+        elif tree["context"] == "while":
+            generate_while(tree["content"], state)
         elif tree["context"] == "return":
             generate_return(tree["content"], state)
+        elif tree["context"] == "break":
+            generate_break(tree, state)
+        elif tree["context"] == "continue":
+            generate_continue(tree, state)
     output = ""
     if len(state.data_section) > 0:
         output += "section .data\n"
@@ -720,6 +728,41 @@ def generate_if(ast, state):
         state.text_section += "jmp " + end_label + "\n" 
     #generate the end label
     state.text_section += end_label + ":\n"
+
+def generate_while(ast, state):
+    #generate `while` condition
+    while_label = "_WHILE" + str(state.label_count)
+    state.text_section += while_label + ":\n"
+    condition = generate_expression(ast["condition"]["content"], state)
+    if condition.is_constant:
+        state.text_section += "mov rax, " + condition.val + "\n" 
+        condition.val = "rax"
+    state.label_count += 1
+    state.text_section += "cmp " + condition.val + ", 0\n"
+    end_label = "_END" + str(state.label_count)
+    state.label_count += 1
+    state.text_section += "je " + end_label + "\n"
+ 
+    #generate `while` body
+    local = copy.deepcopy(state)
+    local.text_section = ""
+    local.continue_label = while_label
+    local.break_label = end_label
+    base_stack_position = local.stack_position
+    generate(ast["body"], state=local)
+    state.text_section += local.text_section
+    state.label_count += local.label_count    
+    if local.stack_position - base_stack_position != 0:
+        state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
+    state.text_section += "jmp " + while_label + "\n" 
+
+    state.text_section += end_label + ":\n"
+
+def generate_continue(ast, state):
+    state.text_section += "jmp " + state.continue_label + "\n"
+
+def generate_break(ast, state):
+    state.text_section += "jmp " + state.break_label + "\n"
 
 def to_int(token):
     val = 0
