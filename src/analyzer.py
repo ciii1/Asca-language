@@ -199,9 +199,6 @@ def analyze_variable_declaration(ast, state):
             throw_error("mismatched type", ast["init-sign"])
             return None
         if ast["init-sign"].val == ":=":
-            if ast["size"].val != "qword" and ast["size"].val != "dword":
-                throw_error("trying to use precise-assign to a size below dword", ast["size"])
-                return None
             if not res.is_in_memory:
                 throw_error("can't precise-assign a non-memory-stored value", ast["init-sign"])
                 return None
