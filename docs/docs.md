@@ -147,7 +147,7 @@ You should assign a pointer that points to the string literal "hello":
 qword a:ptr = @"hello";
 ```
 ### Loops
-there are two types of loop in asca: `while` and `for` loop.
+There are two types of loop in asca: `while` and `for` loop.
 their syntax is the same with C loops' syntax:
 ```
 for(initialisation; condition; expression) {
@@ -161,6 +161,25 @@ while(condition) {
 	statements;
 }
 ```
+
+#### `continue` keyword
+You can use the `continue` keyword to jump back to the top of a loop. It behaves smiliarly with python's `continue` keyword:
+```
+type int;
+type void;
+
+qword i:int = 0;
+while(i < 10) {
+	i+=1;
+	if(i == 15) {
+		break;	
+	}
+	continue;
+}
+i+0; //10
+```
+#### `break` keyword
+The break keyword is used to jump to the end of a loop. It behaves smiliarly like a `break` keyword in any other languages.
 
 ### `If`, `elif`, `else`.
 the syntax of `if`, `elif` and `else` is the same with
