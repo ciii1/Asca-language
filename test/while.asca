@@ -1,24 +1,12 @@
 type int;
 type void;
-type ptr;
-type char;
 
-func print(qword a:ptr):void {
-	/* not implemented */
-}
-func itoc(qword i:int):char {
-	return $(qword)@i;
-}
-
-dword a:int = 0;
-while(a < 50) {
-	a += 1;
-	qword num:char = itoc(a);
-	print(@num);
-	while(a < 100) {
-		a+=10;
-		num = itoc(a);
-		print(@num);
+qword i:int = 0;
+while(i < 10) {
+	i+=1;
+	if(i == 15) {
+		break;	
 	}
+	continue;
 }
-print(@"program done");
+i+0; //10
