@@ -1,7 +1,7 @@
 # Asca
 Asca is a language that aims to remove all the unnecesary high level abstractions
 to let you gain more control of your program.
-It is compiled to nasm assembly
+It is compiled to nasm assembly.
 
 ### Documentation
 you can find it [here](docs/docs.md)
@@ -11,6 +11,7 @@ you can find it [here](docs/docs.md)
 - [X] Generate `while` and `for` loops
 - [ ] SysV ABI function call convention
 - [ ] Link with C libraries
+- [ ] Add operators to do unsigned operations
 - [ ] Refactor the whole source code                
 
 
