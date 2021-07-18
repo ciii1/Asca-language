@@ -13,10 +13,14 @@ class generator_state():
         self.function_list = function_list
         self.continue_label = ""
         self.break_label = ""
+        self.used_register = []
     def add_data(self, value, size="db"):
         self.data_count += 1
         self.data_section += "_DATA" + str(self.data_count) + " " + size + " " + value + "\n"
         return "_DATA" + str(self.data_count)
+    def add_used_register(self, value):
+        if not value in self.used_register:
+            self.used_register.append(value)
 
 class item():
     def __init__(self, val, dtype, size, is_constant, in_memory, is_writeable=True):
@@ -32,7 +36,8 @@ def generate(ast, function_list = None, state = None):
         state = generator_state(function_list)
     for tree in ast:
         if tree["context"] == "expression":
-            generate_expression(tree["content"], state) 
+            generate_expression(tree["content"], state)
+            state.used_register = []
         elif tree["context"] == "variable_declaration":
             generate_variable_declaration(tree["content"], state)
         elif tree["context"] == "function_declaration":
@@ -136,7 +141,7 @@ def generate_expression(ast, state, res_register="rax", is_parsing_left=True):
     elif ast["context"] == "infix_expression":
         return generate_infix(ast["content"], state, res_register, is_parsing_left)
     else:
-        return generate_value(ast, state)
+        return generate_value(ast, state, res_register)
  
 def generate_infix(ast, state, res_register, is_parsing_left): 
     if is_parsing_left:
@@ -145,20 +150,28 @@ def generate_infix(ast, state, res_register, is_parsing_left):
            ast[1].tag == "PRECISE_ARITHMETICAL_OPERATOR" or\
            ast[1].tag == "PRECISE_CONDITIONAL_OPERATOR":
             left = generate_expression(ast[0], state, "xmm2", True)
-            right = generate_expression(ast[2], state, "xmm3", True)
+            state.add_used_register("xmm2")
+            right = generate_expression(ast[2], state, "xmm3", False)
+            state.add_used_register("xmm3")
         else:
             left = generate_expression(ast[0], state, "r8", True)
+            state.add_used_register("r8")
             right = generate_expression(ast[2], state, "r9", False)
+            state.add_used_register("r9")
     else:
         if ast[1].tag == "PRECISE_RELATIONAL_OPERATOR" or\
            ast[1].tag == "PRECISE_ASSIGNMENT_OPERATOR" or\
            ast[1].tag == "PRECISE_ARITHMETICAL_OPERATOR" or\
            ast[1].tag == "PRECISE_CONDITIONAL_OPERATOR":
-            left = generate_expression(ast[0], state, "xmm4", True)
-            right = generate_expression(ast[2], state, "xmm3", True)
+            left = generate_expression(ast[0], state, "xmm4", False)
+            state.add_used_register("xmm4")
+            right = generate_expression(ast[2], state, "xmm3", False)
+            state.add_used_register("xmm3")
         else:
-            left = generate_expression(ast[0], state, "r11", True)
+            left = generate_expression(ast[0], state, "r11", False)
+            state.add_used_register("r11")
             right = generate_expression(ast[2], state, "r9", False)
+            state.add_used_register("r9")
     #check if both variables are constant, if yes then do a constant fold
     if right.is_constant and left.is_constant:
         if left.type == "FLOAT":
@@ -618,11 +631,11 @@ def generate_unary(ast, state):
         state.text_section += "cmove " + operand.val + ", rbx\n"
         return item(operand.val, "INT", "qword", False, False)
 
-def generate_value(ast, state):
+def generate_value(ast, state, res_register):
     if ast["context"] == "identifier":
         return generate_variable(ast, state)
     elif ast["context"] == "function_call":
-        return generate_function_call(ast, state)
+        return generate_function_call(ast, state, res_register)
     elif ast["context"] == "constant":
         if ast["value"].tag == "STRING":
             val = state.add_data(ast["value"].val + ", 0", "db")
@@ -646,9 +659,16 @@ def generate_variable(ast, state):
             pos = array_val.val + " * " + str(size_to_number(state.variable_list[ast["value"].val]["size"])) + " + " + str(pos)
     return item("[rsp + " + str(pos) + "]", "INT", state.variable_list[ast["value"].val]["size"], False, True)
 
-def generate_function_call(ast, state):
+def generate_function_call(ast, state, res_register):
     i = len(ast["parameters"])-1
     total_argument_size = 0
+    used_register = copy.deepcopy(state.used_register)
+    for reg in used_register:
+        if is_xmm_register(reg):
+            state.text_section += "sub rsp, 16\n"
+            state.text_section += "movdqu  dqword [rsp], " + reg + "\n"
+        else:
+            state.text_section += "push " + reg + "\n"
     while i >= 0:
         arg_size = state.function_list[ast["value"].val]["parameters"][i]["size"]
         total_argument_size += size_to_number(arg_size)
@@ -669,7 +689,16 @@ def generate_function_call(ast, state):
     if len(ast["parameters"]) != 0:
         state.text_section += "add rsp, " + str(total_argument_size) + "\n"
         state.stack_position -= total_argument_size
-    return item("rax", "INT", "qword", False, False)
+    used_register.reverse()
+    for reg in used_register:
+        if is_xmm_register(reg):
+            state.text_section += "movdqu " + reg + ", dqword [rsp]\n"
+            state.text_section += "add rsp, 16\n"
+        else:
+            state.text_section += "pop " + reg + "\n"
+    if res_register != "rax":
+        state.text_section += "mov " + res_register + ", rax\n"
+    return item(res_register, "INT", "qword", False, False)
 
 def generate_if(ast, state):
     end_label = "_END" + str(state.label_count) #label for jump after if or elif condition (called the end label here)
@@ -949,3 +978,9 @@ def size_to_number(size):
         return 2
     elif size == "byte":
         return 1
+
+def is_xmm_register(reg):
+    if reg[:2] == "xmm":
+        return True
+    else:
+        return False
