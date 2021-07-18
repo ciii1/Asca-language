@@ -8,7 +8,7 @@ you can find it [here](docs/docs.md)
 
 ### TODO
 - [X] Floating point values and `precise-operators`
-- [ ] Generate `while` and `for` loops
+- [X] Generate `while` and `for` loops
 - [ ] SysV ABI function call convention
 - [ ] Link with C libraries
 - [ ] Refactor the whole source code                
