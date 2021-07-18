@@ -4,6 +4,5 @@ func square(dword n:int):int {
 	return n*n;
 }
 
-dword a:int = 2;
-square(a+2); //16
-//((square(2) + 2)+(3+square(1))*square(4))+(a+3*(square(23)-1)); //(if u want to push it a bit harder, it should outputs 1656 on $rax)
+dword a:int = 5;
+a+(square(5)+square(4)+(3*3)+2);
