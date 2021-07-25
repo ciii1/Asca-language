@@ -54,17 +54,26 @@ def generate(ast, function_list = None, state = None):
             generate_break(tree, state)
         elif tree["context"] == "continue":
             generate_continue(tree, state)
+        elif tree["context"] == "extern":
+            generate_extern(tree["content"], state)
+        elif tree["context"] == "global":
+            generate_global(tree["content"], state)
     output = ""
     if len(state.data_section) > 0:
         output += "section .data\n"
         output += state.data_section
         output += "\n"
     output += "section .text\n"
-    output += "\tglobal _start\n"
     output += state.subroutine_section
-    output += "_start:\n"
+    output += "\n"
     output += state.text_section
     return output
+
+def generate_extern(ast, state):
+    state.subroutine_section += "extern " + ast["id"].val + "\n"
+
+def generate_global(ast, state):
+    state.subroutine_section += "global " + ast["value"].val + "\n"
 
 def generate_variable_declaration(ast, state):
     size = size_to_number(ast["size"].val)
@@ -108,7 +117,7 @@ def generate_variable_declaration(ast, state):
             state.text_section += "mov " + ast["size"].val + " [rsp], " + convert_64bit_reg(init.val, ast["size"].val) + "\n"
 
 def generate_function_declaration(ast, state):
-    state.subroutine_section += "_" + ast["id"].val + ":\n"
+    state.subroutine_section += ast["id"].val + ":\n"
     local = copy.deepcopy(state)
     local.variable_list = {}
     i = 8
@@ -122,6 +131,7 @@ def generate_function_declaration(ast, state):
     local.text_section = ""
     generate(ast["body"], state=local)
     state.subroutine_section += local.text_section
+    state.data_section += local.data_section
     state.label_count = local.label_count
 
 def generate_return(ast, state):
@@ -638,7 +648,7 @@ def generate_value(ast, state, res_register):
         return generate_function_call(ast, state, res_register)
     elif ast["context"] == "constant":
         if ast["value"].tag == "STRING":
-            val = state.add_data(ast["value"].val + ", 0", "db")
+            val = state.add_data(ast["value"].val, "db")
             return item("[" + val + "]", ast["value"].tag, "byte", False, True, False)
         elif ast["value"].tag == "FLOAT":
             val = state.add_data(ast["value"].val, "dq")
@@ -685,7 +695,7 @@ def generate_function_call(ast, state, res_register):
                 state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
             state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg(param.val, arg_size) + "\n"
         i-=1
-    state.text_section += "call _" + ast["value"].val + "\n"
+    state.text_section += "call " + ast["value"].val + "\n"
     if len(ast["parameters"]) != 0:
         state.text_section += "add rsp, " + str(total_argument_size) + "\n"
         state.stack_position -= total_argument_size
@@ -730,8 +740,9 @@ def generate_if(ast, state):
         local.text_section = ""
         base_stack_position = local.stack_position
         generate(ast["else"]["content"]["body"], state=local)
-        state.text_section += local.text_section
         state.label_count += local.label_count
+        state.text_section += local.text_section
+        state.data_section += local.data_section
         if local.stack_position - base_stack_position != 0:
             state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
     state.text_section += "jmp " + end_label + "\n"
@@ -742,6 +753,7 @@ def generate_if(ast, state):
     base_stack_position = local.stack_position
     generate(ast["body"], state=local)
     state.text_section += local.text_section
+    state.data_section += local.data_section
     state.label_count += local.label_count
     if local.stack_position - base_stack_position != 0:
         state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
@@ -754,6 +766,7 @@ def generate_if(ast, state):
         base_stack_position = local.stack_position
         generate(body, state=local)
         state.text_section += local.text_section
+        state.data_section += local.data_section
         state.label_count += local.label_count
         if local.stack_position - base_stack_position != 0:
             state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
@@ -785,6 +798,8 @@ def generate_while(ast, state):
     base_stack_position = local.stack_position
     generate(ast["body"], state=local)
     state.text_section += local.text_section
+    state.data_section += local.data_section
+    state.label_count += local.label_count
     state.label_count += local.label_count    
     if local.stack_position - base_stack_position != 0:
         state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
@@ -825,6 +840,8 @@ def generate_for(ast, state):
     base_stack_position = local.stack_position
     generate(ast["body"], state=local)
     state.text_section += local.text_section
+    state.data_section += local.data_section
+    state.label_count += local.label_count
     state.label_count += local.label_count
     if ast["increment"] == "variable_declaration":
         increment = generate_variable_declaration(ast["increment"]["content"], state)

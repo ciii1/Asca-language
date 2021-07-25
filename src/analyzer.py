@@ -25,20 +25,16 @@ class item():
 def analyze(ast, state = analyzer_state()):
     for tree in ast:
         if tree["context"] == "expression":
-            res = analyze_expression(tree["content"], state)
-            if res is None:
+            if analyze_expression(tree["content"], state) is None:
                 state.is_error = True
         elif tree["context"] == "variable_declaration":
-            res = analyze_variable_declaration(tree["content"], state)
-            if res is None:
+            if analyze_variable_declaration(tree["content"], state) is None:
                 state.is_error = True
         elif tree["context"] == "type_declaration":
-            res = analyze_type_declaration(tree["content"], state)
-            if res is None:
+            if analyze_type_declaration(tree["content"], state) is None:
                 state.is_error = True
         elif tree["context"] == "function_declaration":
-            res = analyze_function_declaration(tree["content"], state)
-            if res is None:
+            if analyze_function_declaration(tree["content"], state) is None:
                 state.is_error = True
         elif tree["context"] == "return":
             if analyze_return(tree["content"], state) is None:
@@ -58,8 +54,40 @@ def analyze(ast, state = analyzer_state()):
         elif tree["context"] == "if":
             if analyze_if(tree["content"], state) is None:
                 state.is_error = True
+        elif tree["context"] == "global":
+            if analyze_global(tree["content"], state) is None:
+                state.is_error = True
+        elif tree["context"] == "extern":
+            if analyze_extern(tree["content"], state) is None:
+                state.is_error = True
     return state
 
+def analyze_extern(ast, state):
+    if state.function_list.get(ast["id"].val) or state.variable_list.get(ast["id"].val) or state.type_list.get(ast["id"].val):
+        throw_error("name '%s' is already exist" % ast["id"].val, ast["id"]);
+        return None
+    local = copy.deepcopy(state)
+    local.is_error = False
+    local.variable_list = {}
+    local.parent_function = {"id": ast["id"].val, "type": ast["type"].val}
+    if state.type_list.get(ast["type"].val) is None:
+        throw_error("undeclared type", ast["type"])
+        return None
+    if len(ast["parameters"]) == 0:
+        state.function_list[ast["id"].val] = {"parameters":{}, "type":ast["type"].val}
+    else:
+        i = 0
+        params = []
+        for param in ast["parameters"]:
+            analyze_variable_declaration(param["content"], local)
+            res = fetch_function_parameter(param["content"], state)
+            if res is None:
+                return None
+            params.append(res)
+            i += 1
+        state.function_list[ast["id"].val] = {"parameters":params, "type":ast["type"].val}
+    return state
+ 
 def analyze_function_declaration(ast, state):
     if state.function_list.get(ast["id"].val) or state.variable_list.get(ast["id"].val) or state.type_list.get(ast["id"].val):
         throw_error("name '%s' is already exist" % ast["id"].val, ast["id"]);
@@ -174,6 +202,12 @@ def analyze_return(ast, state):
         return None
     state.has_return_value = True
     return res
+
+def analyze_global(ast, state):
+    if not state.function_list.get(ast["value"].val):
+        throw_error("undeclared function '%s'" % ast["value"].val, ast["value"])
+        return None
+    return 0
 
 def analyze_type_declaration(ast, state):
     if state.type_list.get(ast["id"].val) or state.function_list.get(ast["id"].val) or state.variable_list.get(ast["id"].val):

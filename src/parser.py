@@ -66,7 +66,11 @@ def parse_basic(state):
                     if res is None:
                         res = parse_type_declaration(state)
                         if res is None:
-                            return None
+                            res = parse_global(state)
+                            if res is None:
+                                res = parse_extern(state)
+                                if res is None:
+                                    return None
     state.inc_position()
     if state.get_token().val != ";":
         state.dec_position()
@@ -784,6 +788,68 @@ def parse_continue(state):
     if state.get_token().val != "continue":
         return None
     output["value"] = state.get_token()
+    return output
+
+def parse_global(state):
+    output = {
+        "context" : "global",
+        "content" : {
+            "keyword": None,
+            "value": None
+        }
+    }
+    if state.get_token().val != "global":
+        return None
+    output["content"]["keyword"] = state.get_token()
+    state.inc_position()
+    if state.get_token().tag != "ID":
+        return None
+    output["content"]["value"] = state.get_token()
+    return output
+
+def parse_extern(state):
+    output = {
+        "context" : "extern",
+        "content" : {
+            "id": None,
+            "parameters": [],
+            "type": None
+        }
+    }
+    if state.get_token().val != "extern":
+        return None
+
+    state.inc_position()
+    if state.get_token().tag != "ID":
+        return None
+    output["content"]["id"] = state.get_token()
+
+    state.inc_position()
+    if state.get_token().val != "(":
+        return None
+
+    state.inc_position()
+    while True:
+        if state.get_token().val == ")":
+            break
+        res = parse_variable_declaration(state)
+        if res is None:
+            return None
+        output["content"]["parameters"].append(res)
+        state.inc_position()
+        if state.get_token().val == ",":
+            state.inc_position()
+            if state.get_token().val == ")":
+                return None
+
+    state.inc_position()
+    if state.get_token().val != ":":
+        return None
+
+    state.inc_position()
+    if state.get_token().tag != "ID":
+        return None
+    output["content"]["type"] = state.get_token()
     return output
 
 def throw_parse_error(msg, state):
