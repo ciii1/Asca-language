@@ -357,7 +357,12 @@ def analyze_function_call(ast, state):
     if res is None:
         throw_error("undeclared function '%s'" % ast["value"].val, ast["value"])
         return None
+    #check param length
+    if len(ast["parameters"]) != len(state.function_list[ast["value"].val]["parameters"]):
+        throw_error("expected %i parameters but %i were given" % (len(state.function_list[ast["value"].val]["parameters"]), len(ast["parameters"])), ast["value"])
+        return None
     #check parameters 
+    i = 0
     for arg in ast["parameters"]:
         expr = analyze_expression(arg["content"], state)
         if expr is None:
@@ -365,10 +370,16 @@ def analyze_function_call(ast, state):
         if expr.is_array:
             throw_error("can't pass array to function", ast["value"])
             return None
-    #check length
-    if len(ast["parameters"]) != len(state.function_list[ast["value"].val]["parameters"]):
-        throw_error("expected %i parameters but %i were given" % (len(state.function_list[ast["value"].val]["parameters"]), len(ast["parameters"])), ast["value"])
-        return None
+        if expr.type != state.function_list[ast["value"].val]["parameters"][i]["type"] and\
+           not is_literal(expr):
+            if i == 0:
+                throw_error("invalid type for the first argument", ast["value"])
+            elif i == 1:
+                throw_error("invalid type for the second argument", ast["value"])
+            else:
+                throw_error("invalid type for the %ith parameter" % (i+1), ast["value"]) 
+            return None
+        i+=1
     return item(ast["value"], res["type"], False, False)
 
 def is_literal(val):
