@@ -1,8 +1,17 @@
-type int;
+type Int;
+type Ptr;
+type Void;
 
-func square(dword n:int):int {
+extern printf(qword str:Ptr):Void;
+
+func square(dword n:Int):Int {
 	return n*n;
 }
 
-dword a:int = 5;
-a+(square(5)+square(4)+(3*3)+2);
+/* entry point */
+func _start():Int {
+	dword a:Int = 5;
+	square(a);
+	printf(1.2);
+	return 0;
+} global _start;
