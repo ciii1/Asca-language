@@ -123,8 +123,10 @@ def generate_function_declaration(ast, state):
     i = 8
     for item in ast["parameters"]:
         #add the parameter to the variable list with the value from the stack
-        local.variable_list[item["content"]["id"].val] = {"size":item["content"]["size"].val, "position":-i}
-        i += size_to_number(item["content"]["size"].val)
+        size = item["expression"]["content"]["size"].val
+        identifier = item["expression"]["content"]["id"].val
+        local.variable_list[identifier] = {"size":size, "position":-i}
+        i += size_to_number(size)
     #generate body#
     local.stack_position = 0
     local.base_stack_position = local.stack_position
