@@ -10,7 +10,6 @@ func alloc(qword block:int): ptr {
 	return 1;
 }
 
-
 func add(qword a:int, qword b:int) : ptr{
 	qword res:int = a+b;
 	print(res);

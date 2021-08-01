@@ -3,11 +3,8 @@ type Int;
 type Void;
 
 func _start():Void {
-	word a:Float := 14.1;
-	qword b:Float := 14.1;
-	a = (a + b) * 1.2;
-	a := a;
-	a :== b;
-	a := 1.2 :+ 1.3;
-	return 0;
+	qword a:Float := 1.0;
+	qword b:Float := 2.0;
+	qword c:Float := 0.5;	
+	return (a :/ b) :== c;
 } global _start;
