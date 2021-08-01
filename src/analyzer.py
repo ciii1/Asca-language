@@ -73,19 +73,17 @@ def analyze_extern(ast, state):
     if state.type_list.get(ast["type"].val) is None:
         throw_error("undeclared type", ast["type"])
         return None
-    if len(ast["parameters"]) == 0:
-        state.function_list[ast["id"].val] = {"parameters":{}, "type":ast["type"].val}
-    else:
+    state.function_list[ast["id"].val] = {"parameters":{}, "type":ast["type"].val}
+    if len(ast["parameters"]) != 0:
         i = 0
         params = []
         for param in ast["parameters"]:
-            analyze_variable_declaration(param["content"], local)
-            res = fetch_function_parameter(param["content"], state)
+            res = fetch_function_parameter(param["expression"]["content"], state)
             if res is None:
                 return None
             params.append(res)
             i += 1
-        state.function_list[ast["id"].val] = {"parameters":params, "type":ast["type"].val}
+        state.function_list[ast["id"].val]["parameters"] = params
     return state
  
 def analyze_function_declaration(ast, state):
@@ -109,7 +107,7 @@ def analyze_function_declaration(ast, state):
                 return None
             params.append(res)
             i += 1
-        state.function_list[ast["id"].val]["parameters"]:params
+        state.function_list[ast["id"].val]["parameters"] = params
     if analyze(ast["body"], local).is_error:
         return None
     if not local.has_return_value:
@@ -133,7 +131,7 @@ def fetch_function_parameter(ast, state):
     if ast["array-size"] is not None:
         throw_error("can't use array as a parameter for a function", ast["id"])
         return None
-    return {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"]}
+    return {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"], "is_floating_point": True}
 
 def analyze_if(ast, state):
     if analyze_expression(ast["condition"]["content"], state) is None:

@@ -838,12 +838,20 @@ def parse_extern(state):
 
     state.inc_position()
     while True:
+        template = {
+                "expression": None,
+                "is_floating_point": False
+        }
         if state.get_token().val == ")":
             break
+        if state.get_token().val == ":": #check for floating-point parameters
+            template["is_floating_point"] = True
+            state.inc_position()
         res = parse_variable_declaration(state)
         if res is None:
             return None
-        output["content"]["parameters"].append(res)
+        template["expression"] = res 
+        output["content"]["parameters"].append(template)
         state.inc_position()
         if state.get_token().val == ",":
             state.inc_position()
