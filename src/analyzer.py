@@ -90,19 +90,19 @@ def analyze_function_declaration(ast, state):
     if state.function_list.get(ast["id"].val) or state.variable_list.get(ast["id"].val) or state.type_list.get(ast["id"].val):
         throw_error("name '%s' is already exist" % ast["id"].val, ast["id"]);
         return None
-    local = copy.deepcopy(state)
-    local.is_error = False
-    local.variable_list = {}
-    local.parent_function = {"id": ast["id"].val, "type": ast["type"].val}
     if state.type_list.get(ast["type"].val) is None:
         throw_error("undeclared type", ast["type"])
         return None
     state.function_list[ast["id"].val] = {"parameters":{}, "type":ast["type"].val}
+    local = copy.deepcopy(state)
+    local.is_error = False
+    local.variable_list = {}
+    local.parent_function = {"id": ast["id"].val, "type": ast["type"].val}
     if len(ast["parameters"]) != 0:
         i = 0
         params = []
         for param in ast["parameters"]:
-            res = fetch_function_parameter(param["expression"]["content"], state)
+            res = fetch_function_parameter(param["expression"]["content"], state, local)
             if res is None:
                 return None
             params.append(res)
@@ -115,7 +115,7 @@ def analyze_function_declaration(ast, state):
         return None
     return state
 
-def fetch_function_parameter(ast, state):
+def fetch_function_parameter(ast, state, local):
     if ast["init"] is not None:
         throw_error("cannot assign in parameter list", ast["id"])
         return None
@@ -131,6 +131,7 @@ def fetch_function_parameter(ast, state):
     if ast["array-size"] is not None:
         throw_error("can't use array as a parameter for a function", ast["id"])
         return None
+    local.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"]}
     return {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"], "is_floating_point": True}
 
 def analyze_if(ast, state):
