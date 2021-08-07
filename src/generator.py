@@ -81,6 +81,7 @@ def generate_variable_declaration(ast, state):
         size *= int(ast["array-size"].val)
     state.stack_position += size
     state.variable_list[ast["id"].val] = {"size":ast["size"].val, "position":state.stack_position}
+    #TODO:sub rsp at the start of a function, not each time a variable is declared.
     state.text_section += "sub rsp, " + str(size) + "\n"
     if ast["init"] is not None:
         init = generate_expression(ast["init"]["content"], state)
@@ -681,6 +682,12 @@ def generate_function_call(ast, state, res_register):
             state.text_section += "movdqu  dqword [rsp], " + reg + "\n"
         else:
             state.text_section += "push " + reg + "\n"
+    #allign the stack
+    unalligned_stack = state.stack_position
+    alligned_stack = allign_num(state.stack_position, 16)
+    if alligned_stack != unalligned_stack:
+        state.stack_position = alligned_stack
+        state.text_section += "sub rsp, " + str(alligned_stack) + "\n"
     while i >= 0:
         arg_size = state.function_list[ast["value"].val]["parameters"][i]["size"]
         total_argument_size += size_to_number(arg_size)
@@ -701,6 +708,10 @@ def generate_function_call(ast, state, res_register):
     if len(ast["parameters"]) != 0:
         state.text_section += "add rsp, " + str(total_argument_size) + "\n"
         state.stack_position -= total_argument_size
+    #unallign the stack
+    if alligned_stack != unalligned_stack:
+        state.stack_position = unalligned_stack 
+        state.text_section += "add rsp, " + str(alligned_stack - unalligned_stack) + "\n"
     used_register.reverse()
     for reg in used_register:
         if is_xmm_register(reg):
@@ -1003,3 +1014,11 @@ def is_xmm_register(reg):
         return True
     else:
         return False
+
+def allign_num(val, mul):
+    if val == 0:
+        val = 1
+    remainder = val % mul
+    if (remainder == 0):
+        return val
+    return val + mul - remainder
