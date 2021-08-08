@@ -1,0 +1,21 @@
+/*
+* This program prints a-z using the memory that is allocated by malloc
+*/
+
+type Int;
+type Ptr;
+type Void;
+
+extern malloc(qword size:Int):Ptr;
+extern free(qword addr:Ptr):Int;
+extern puts(qword msg:Ptr):Void;
+
+func main():Int {
+	qword a:Ptr = malloc(26);
+	for(qword i:Ptr = 0; i < 26; i += 1) {
+		($(byte)(a+i)) = 'a' + i;
+	} 
+	puts(a);
+	free(a);
+	return 0;
+} global main;

@@ -1,6 +1,0 @@
-type int;
-
-qword a:int;
-qword b:int;
-
-a += 1+2+(a-=5);

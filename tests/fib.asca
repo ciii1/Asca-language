@@ -1,0 +1,22 @@
+/*
+*Date: /2021/07/18/12:02/
+*/
+
+type Int;
+
+func fib(dword num:Int):Int {
+	qword x:Int = 0;
+	qword y:Int = 1;
+	qword z:Int;
+	for(dword i:Int = 1; i < num; i+=1) {
+		z = x+y;
+		y = x;
+		x = z;	
+	}
+	return z;
+}
+
+func main():Int {
+	fib(5); //print the fibonacci numbers untill 5, wich is 3 (if you count from 1)	
+	return 0;
+} global main;

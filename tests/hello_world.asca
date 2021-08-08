@@ -1,0 +1,15 @@
+/*
+*2021/August/8
+*Asca says her first word
+*/
+
+type Int;
+type Ptr;
+type Void;
+
+extern puts(qword msg:Ptr):Void;
+
+func main():Int {
+	puts(@"Hi");
+	return 0;
+} global main;

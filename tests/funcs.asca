@@ -1,0 +1,9 @@
+type Int;
+
+func echo_num(dword n:Int):Int {
+	return n;
+}
+
+func _start():Int {
+	return echo_num(1);
+} global _start;

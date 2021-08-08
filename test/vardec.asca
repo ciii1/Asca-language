@@ -1,8 +1,0 @@
-type int;
-type char;
-
-byte x : int = 8;
-word y : int = 5;
-qword z : int = 2;
-
-x+y+z;

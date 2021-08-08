@@ -1,7 +1,0 @@
-qword file:ptr;
-file = open("~/hello");
-qword str:ptr = read(file);
-print(str);
-$(byte)(str + 1) = 'h';
-print(str);
-
