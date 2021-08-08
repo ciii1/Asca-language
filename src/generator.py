@@ -635,7 +635,7 @@ def generate_unary(ast, state):
         state.text_section += "neg " + operand.val + "\n"
         return item(operand.val, operand.type, "qword", False, False)
     elif ast[0].val == "$":
-        operand = generate_expression(ast[2], state)
+        operand = generate_expression(ast[2], state, "r13")
         if operand.is_constant or operand.in_memory:
             state.text_section += "mov r13, " + operand.val + "\n"
             operand.val = "r13"
@@ -747,8 +747,10 @@ def generate_function_call(ast, state, res_register):
         if is_xmm_register(reg):
             state.text_section += "movdqu " + reg + ", dqword [rsp]\n"
             state.text_section += "add rsp, 16\n"
+            state.stack_position -= 16
         else:
             state.text_section += "pop " + reg + "\n"
+            state.stack_position -= 8
     if res_register != "rax":
         state.text_section += "mov " + res_register + ", rax\n"
     return item(res_register, "INT", "qword", False, False)
