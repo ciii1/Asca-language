@@ -121,17 +121,30 @@ def generate_function_declaration(ast, state):
     state.subroutine_section += ast["id"].val + ":\n"
     local = copy.deepcopy(state)
     local.variable_list = {}
-    i = 8
-    for item in ast["parameters"]:
-        #add the parameter to the variable list with the value from the stack
-        size = item["expression"]["content"]["size"].val
-        identifier = item["expression"]["content"]["id"].val
-        local.variable_list[identifier] = {"size":size, "position":-i}
-        i += size_to_number(size)
-    #generate body#
     local.stack_position = 0
-    local.base_stack_position = local.stack_position
     local.text_section = ""
+    #init to 8 for the function address that was automatically pushed when the function is called
+    i = 8
+    j = 0
+    int_register_seq = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+    for item in ast["parameters"]:
+        if j < 6:
+            #move the parameters on registers to the stack
+            size = item["expression"]["content"]["size"].val
+            identifier = item["expression"]["content"]["id"].val
+            local.stack_position += size_to_number(size)
+            local.variable_list[identifier] = {"size": size, "position":local.stack_position}
+            local.text_section += "sub rsp, " + str(size_to_number(size)) + "\n"
+            local.text_section += "mov " + size + " [rsp], " + convert_64bit_reg(int_register_seq[j], size) + "\n"
+            j += 1
+        else:
+            #add the stack parameters to the variable list with the value from the stack
+            size = item["expression"]["content"]["size"].val
+            identifier = item["expression"]["content"]["id"].val
+            local.variable_list[identifier] = {"size":size, "position":-i}
+            i += size_to_number(size)
+    #generate body
+    local.base_stack_position = local.stack_position
     generate(ast["body"], state=local)
     state.subroutine_section += local.text_section
     state.data_section += local.data_section
@@ -673,45 +686,62 @@ def generate_variable(ast, state):
     return item("[rsp + " + str(pos) + "]", "INT", state.variable_list[ast["value"].val]["size"], False, True)
 
 def generate_function_call(ast, state, res_register):
-    i = len(ast["parameters"])-1
-    total_argument_size = 0
     used_register = copy.deepcopy(state.used_register)
+    #push used registers to stack
     for reg in used_register:
         if is_xmm_register(reg):
             state.text_section += "sub rsp, 16\n"
             state.text_section += "movdqu  dqword [rsp], " + reg + "\n"
+            state.stack_position += 16
         else:
             state.text_section += "push " + reg + "\n"
+            state.stack_position += 8
     #allign the stack
     unalligned_stack = state.stack_position
     alligned_stack = allign_num(state.stack_position, 16)
     if alligned_stack != unalligned_stack:
         state.stack_position = alligned_stack
-        state.text_section += "sub rsp, " + str(alligned_stack) + "\n"
-    while i >= 0:
+        state.text_section += "sub rsp, " + str(alligned_stack - unalligned_stack) + "\n"
+    #push argument to registers (AMD64 ABI calling convention)
+    i = 0
+    int_register_seq = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+    while i <= 6 and i < len(ast["parameters"]):
         arg_size = state.function_list[ast["value"].val]["parameters"][i]["size"]
-        total_argument_size += size_to_number(arg_size)
+        param = generate_expression(ast["parameters"][i]["content"], state)
+        if param.in_memory:
+            state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
+            param.val = "rbx"
+        if param.size != "qword":
+            state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
+        state.text_section += "mov " + convert_64bit_reg(int_register_seq[i], arg_size) + ", " + convert_64bit_reg(param.val, arg_size) + "\n"
+        i+=1
+    #push argument to stack from right to left
+    i = len(ast["parameters"])-1
+    total_stack_argument_size = 0
+    while i > 6:
+        arg_size = state.function_list[ast["value"].val]["parameters"][i]["size"]
+        total_stack_argument_size += size_to_number(arg_size)
         state.text_section += "sub rsp, " + str(size_to_number(arg_size)) + "\n"
         state.stack_position += size_to_number(arg_size)
         param = generate_expression(ast["parameters"][i]["content"], state)
         if param.in_memory:
             state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
             param.val = "rbx"
-        if param.is_constant:
-            state.text_section += "mov " + arg_size + " [rsp], " + param.val + "\n"
-        else:
-            if param.size != "qword":
-                state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
-            state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg(param.val, arg_size) + "\n"
+        if param.size != "qword":
+            state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
+        state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg(param.val, arg_size) + "\n"
         i-=1
+    #call function
     state.text_section += "call " + ast["value"].val + "\n"
-    if len(ast["parameters"]) != 0:
-        state.text_section += "add rsp, " + str(total_argument_size) + "\n"
-        state.stack_position -= total_argument_size
-    #unallign the stack
+    #remove arguments on stack
+    if total_stack_argument_size != 0:
+        state.text_section += "add rsp, " + str(total_stack_argument_size) + "\n"
+        state.stack_position -= total_stack_argument_size
+    #restore the stack back
     if alligned_stack != unalligned_stack:
         state.stack_position = unalligned_stack 
         state.text_section += "add rsp, " + str(alligned_stack - unalligned_stack) + "\n"
+    #restore the register that is pushed
     used_register.reverse()
     for reg in used_register:
         if is_xmm_register(reg):
@@ -877,7 +907,7 @@ def generate_break(ast, state):
 def to_int(token):
     val = 0
     if token.type == "CHAR":
-        val = ord(token.val)
+        val = ord(token.val[1])
     elif token.type == "INT":
         val = int(token.val)
     elif token.type == "FLOAT":
