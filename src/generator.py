@@ -628,10 +628,9 @@ def generate_infix(ast, state, res_register, is_parsing_left):
 
 def generate_unary(ast, state):
     if ast[0].val == "-" or ast[0].val == "+":
-        operand = generate_expression(ast[1], state)
+        operand = generate_expression(ast[1], state, "r13")
         if operand.is_constant or operand.in_memory:
             state.text_section += "mov r13, " + operand.val + "\n"
-            operand.val = "r13"
         state.text_section += "neg " + operand.val + "\n"
         return item(operand.val, operand.type, "qword", False, False)
     elif ast[0].val == "$":
@@ -639,18 +638,19 @@ def generate_unary(ast, state):
         if operand.is_constant or operand.in_memory:
             state.text_section += "mov r13, " + operand.val + "\n"
             operand.val = "r13"
+        operand.in_memory = True
         return item("["+operand.val+"]", "INT", ast[1].val, False, True)
     elif ast[0].val == "@":
-        operand = generate_expression(ast[1], state)
+        operand = generate_expression(ast[1], state, "r13")
         if operand.in_memory:
             state.text_section += "lea r13, " + operand.val + "\n"
-            operand.val = "r13"           
+            operand.val = "r13"
+        operand.in_memory = False
         return item(operand.val, "INT", "qword", True, False) 
     elif ast[0].val == "!":
-        operand = generate_expression(ast[1], state)
+        operand = generate_expression(ast[1], state, "r13")
         if operand.is_constant or operand.in_memory:
             state.text_section += "mov r13, " + operand.val + "\n"
-            operand.val = "r13"
         state.text_section += "cmp " + operand.val + ", 0\n"
         state.text_section += "mov " + operand.val + ", 0\n"
         state.text_section += "mov rbx, 1\n"
