@@ -78,7 +78,7 @@ def analyze_extern(ast, state):
         i = 0
         params = []
         for param in ast["parameters"]:
-            res = fetch_function_parameter(param["expression"]["content"], state)
+            res = fetch_function_parameter(param["expression"]["content"], state, local)
             if res is None:
                 return None
             params.append(res)
@@ -362,8 +362,7 @@ def analyze_unary(ast, state):
         if not operand.is_array:
             operand.type = "LIT"
             operand.is_in_memory = True
-            operand.is_array = False
-            return operand    
+            return operand
     throw_error("mismatched type for unary operator %s" % operator.val, operator)
     return None
 
