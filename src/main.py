@@ -94,10 +94,10 @@ if len(sys.argv) > 1:
             fp.write(output)
             fp.close()
             subprocess.call(["nasm", "-felf64", "a.asm"])
-            subprocess.call(["ld", "a.o"])
+            #subprocess.call(["gcc", "-no-pie", "a.o"])
             #subprocess.call(["rm", "a.asm"])
-            subprocess.call(["rm", "a.o"])
-            print("compilation completed, output: a.out")
+            #subprocess.call(["rm", "a.o"])
+            print("compilation completed, output: a.o \n (i) If you're using gcc then link with gcc -no-pie a.o")
 else:
     print("Asca interactive syntax and semantic tester (for debugging purpose)")
     print("(i) the code you type wouldn't be compiled \n")
