@@ -125,22 +125,33 @@ def generate_function_declaration(ast, state):
     local.text_section = ""
     #init to 8 for the function address that was automatically pushed when the function is called
     i = 8
-    j = 0
+    j = 0 #int registers counter
+    x = 0 #float registers counter
     int_register_seq = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
     for item in ast["parameters"]:
-        if j < 6:
-            #move the parameters on registers to the stack
-            size = item["expression"]["content"]["size"].val
-            identifier = item["expression"]["content"]["id"].val
+        #move the parameters on registers to the stack
+        size = item["expression"]["content"]["size"].val
+        identifier = item["expression"]["content"]["id"].val
+        if x < 6 and item["is_floating_point"]:
+            local.text_section += "sub rsp, " + str(size_to_number(size)) + "\n"
+            if size == "qword":
+                local.text_section += "movsd qword [rsp], xmm" + str(x) + "\n"
+            elif size == "dword":
+                local.text_section += "movss dword [rsp], xmm" + str(x) + "\n"
+            else:
+                local.text_section += "movq rax, xmm" + str(x) + "\n"
+                local.text_section += "mov " + size + " [rsp], " + convert_64bit_reg("rax", size) + "\n"
             local.stack_position += size_to_number(size)
             local.variable_list[identifier] = {"size": size, "position":local.stack_position}
+            x += 1
+        elif j < 6:
             local.text_section += "sub rsp, " + str(size_to_number(size)) + "\n"
             local.text_section += "mov " + size + " [rsp], " + convert_64bit_reg(int_register_seq[j], size) + "\n"
+            local.stack_position += size_to_number(size)
+            local.variable_list[identifier] = {"size": size, "position":local.stack_position}
             j += 1
         else:
             #add the stack parameters to the variable list with the value from the stack
-            size = item["expression"]["content"]["size"].val
-            identifier = item["expression"]["content"]["id"].val
             local.variable_list[identifier] = {"size":size, "position":-i}
             i += size_to_number(size)
     #generate body
@@ -703,18 +714,29 @@ def generate_function_call(ast, state, res_register):
         state.stack_position = alligned_stack
         state.text_section += "sub rsp, " + str(alligned_stack - unalligned_stack) + "\n"
     #push argument to registers (AMD64 ABI calling convention)
-    i = 0
+    i = 0 #counter for int registers
+    j = 0 #counter for float registers
     int_register_seq = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
-    while i <= 6 and i < len(ast["parameters"]):
+    while (i <= 6 and j <= 6) and (i < len(ast["parameters"]) and j < len(ast["parameters"])):
         arg_size = state.function_list[ast["value"].val]["parameters"][i]["size"]
         param = generate_expression(ast["parameters"][i]["content"], state)
-        if param.in_memory:
-            state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
-            param.val = "rbx"
-        if param.size != "qword":
-            state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
-        state.text_section += "mov " + convert_64bit_reg(int_register_seq[i], arg_size) + ", " + convert_64bit_reg(param.val, arg_size) + "\n"
-        i+=1
+        if state.function_list[ast["value"].val]["parameters"][i]["is_floating_point"]:
+            if param.size == "qword":
+                state.text_section += "movsd xmm" + str(j) + ", qword " + param.val + "\n"
+            elif left.size == "dword":
+                state.text_section += "movss xmm" + str(j) + ", dword " + param.val + "\n"
+            else:
+                state.text_section += "mov rbx, " + param.val +"\n"
+                state.text_section += "movq xmm" + str(j) + ", rbx\n"
+            j+=1
+        else:
+            if param.in_memory:
+                state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
+                param.val = "rbx"
+            if param.size != "qword":
+                state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
+            state.text_section += "mov " + convert_64bit_reg(int_register_seq[i], arg_size) + ", " + convert_64bit_reg(param.val, arg_size) + "\n"
+            i+=1
     #push argument to stack from right to left
     i = len(ast["parameters"])-1
     total_stack_argument_size = 0
@@ -724,12 +746,36 @@ def generate_function_call(ast, state, res_register):
         state.text_section += "sub rsp, " + str(size_to_number(arg_size)) + "\n"
         state.stack_position += size_to_number(arg_size)
         param = generate_expression(ast["parameters"][i]["content"], state)
-        if param.in_memory:
-            state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
-            param.val = "rbx"
-        if param.size != "qword":
-            state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
-        state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg(param.val, arg_size) + "\n"
+        if state.function_list[ast["value"].val]["parameters"][i]["is_floating_point"]:
+            if param.in_memory:
+                if param.is_writeable: #if it's a variable
+                    if param.size == "qword":
+                        state.text_section += "movsd xmm0, " + param.val + "\n"
+                        param.val = "xmm0"
+                    elif param.size == "dword":
+                        state.text_section += "movss xmm0, " + param.val + "\n"
+                        param.val = "xmm0"
+                    else:
+                        state.text_section += "mov " + convert_64bit_reg("rax", param.size) + ", " + param.val + "\n"
+                        state.text_section += "movq xmm0, rax"
+                        init.val = "xmm0"
+                else:
+                    state.text_section += "movsd xmm0, " + param.val + "\n"
+                    param.val = "xmm0"
+            if ast["size"].val == "qword":
+                state.text_section += "movsd qword [rsp], xmm0 \n"
+            elif ast["size"].val == "dword":
+                state.text_section += "movss dword [rsp], xmm0 \n"
+            else:
+                state.text_section += "movq rax, xmm0 \n"
+                state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg("rax", arg_size) + "\n"
+        else:
+            if param.in_memory:
+                state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
+                param.val = "rbx"
+            if param.size != "qword":
+                state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
+            state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg(param.val, arg_size) + "\n"
         i-=1
     #call function
     state.text_section += "call " + ast["value"].val + "\n"

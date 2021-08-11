@@ -415,6 +415,9 @@ def analyze_function_call(ast, state):
             else:
                 throw_error("invalid type for the %ith parameter" % (i+1), ast["value"]) 
             return None
+        if not expr.is_in_memory and state.function_list[ast["value"].val]["parameters"][i]["is_floating_point"]:
+            throw_error("can't pass a non-memory value to a precise parameter", ast["value"]) 
+            return None
         i+=1
     return item(ast["value"], res["type"], False, False)
 
