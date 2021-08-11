@@ -155,19 +155,37 @@ def generate_function_declaration(ast, state):
             local.variable_list[identifier] = {"size":size, "position":-i}
             i += size_to_number(size)
     #generate body
-    local.base_stack_position = local.stack_position
+    local.base_stack_position = state.stack_position
     generate(ast["body"], state=local)
     state.subroutine_section += local.text_section
     state.data_section += local.data_section
     state.label_count = local.label_count
 
 def generate_return(ast, state):
-    init = generate_expression(ast["value"]["content"], state, "rax") 
-    if init.is_constant or init.in_memory:
-        state.text_section += "mov " + convert_64bit_reg("rax", init.size) + ", " + init.val +"\n"
-        init.val = "rax"
-    if init.size != "qword":
-        state.text_section += "movsx rax, " + convert_64bit_reg("rax", init.size) + "\n"
+    if ast["is_floating_point"]:
+        init = generate_expression(ast["value"]["content"], state, "xmm0") 
+        if init.in_memory:
+            if init.is_writeable: #if it's a variable
+                if init.size == "qword":
+                    state.text_section += "movsd xmm0, " + init.val + "\n"
+                    init.val = "xmm0"
+                elif init.size == "dword":
+                    state.text_section += "movss xmm0, " + init.val + "\n"
+                    init.val = "xmm0"
+                else:
+                    state.text_section += "mov " + convert_64bit_reg("rax", init.size) + ", " + init.val + "\n"
+                    state.text_section += "movq xmm0, rax"
+                    init.val = "xmm0"
+            else:
+                state.text_section += "movsd xmm0, " + init.val + "\n"
+                init.val = "xmm0"
+    else:
+        init = generate_expression(ast["value"]["content"], state, "rax") 
+        if init.is_constant or init.in_memory:
+            state.text_section += "mov " + convert_64bit_reg("rax", init.size) + ", " + init.val +"\n"
+            init.val = "rax"
+        if init.size != "qword":
+            state.text_section += "movsx rax, " + convert_64bit_reg("rax", init.size) + "\n"
     if state.stack_position - state.base_stack_position != 0:
         state.text_section += "add rsp, " + str(state.stack_position - state.base_stack_position) + "\n"
     state.text_section += "ret \n"
@@ -797,8 +815,19 @@ def generate_function_call(ast, state, res_register):
         else:
             state.text_section += "pop " + reg + "\n"
             state.stack_position -= 8
-    if res_register != "rax":
-        state.text_section += "mov " + res_register + ", rax\n"
+    if state.function_list[ast["value"].val]["is_floating_point"]:
+        if res_register != "xmm0":
+            if is_xmm_register(res_register):
+                state.text_section += "movsd " + res_register + ", xmm0\n"
+            else:
+                state.text_section += "movq " + res_register + ", xmm0\n"
+    else:
+        if res_register != "rax":
+            if is_xmm_register(res_register): 
+                state.text_section += "movq " + res_register + ", rax\n"
+            else:
+                state.text_section += "mov " + res_register + ", rax\n"
+        
     return item(res_register, "INT", "qword", False, False)
 
 def generate_if(ast, state):

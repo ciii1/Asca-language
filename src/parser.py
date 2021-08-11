@@ -171,7 +171,8 @@ def parse_function_declaration(state):
             "id": None,
             "parameters": [],
             "body": None,
-            "type": None
+            "type": None,
+            "is_floating_point": False
         }
     }
 
@@ -179,6 +180,9 @@ def parse_function_declaration(state):
         return None
 
     state.inc_position()
+    if state.get_token().val == ":": 
+        output["content"]["is_floating_point"] = True
+        state.inc_position()
     if state.get_token().tag != "ID":
         return None
     output["content"]["id"] = state.get_token()

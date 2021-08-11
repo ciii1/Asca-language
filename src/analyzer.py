@@ -69,11 +69,11 @@ def analyze_extern(ast, state):
     local = copy.deepcopy(state)
     local.is_error = False
     local.variable_list = {}
-    local.parent_function = {"id": ast["id"].val, "type": ast["type"].val}
+    local.parent_function = {"id": ast["id"].val, "type": ast["type"].val, "is_floating_point": ast["is_floating_point"]}
     if state.type_list.get(ast["type"].val) is None:
         throw_error("undeclared type", ast["type"])
         return None
-    state.function_list[ast["id"].val] = {"parameters":{}, "type":ast["type"].val}
+    state.function_list[ast["id"].val] = {"parameters":{}, "type":ast["type"].val, "is_floating_point": ast["is_floating_point"]}
     if len(ast["parameters"]) != 0:
         i = 0
         params = []
@@ -93,11 +93,11 @@ def analyze_function_declaration(ast, state):
     if state.type_list.get(ast["type"].val) is None:
         throw_error("undeclared type", ast["type"])
         return None
-    state.function_list[ast["id"].val] = {"parameters":{}, "type":ast["type"].val}
+    state.function_list[ast["id"].val] = {"parameters":{}, "type":ast["type"].val, "is_floating_point": ast["is_floating_point"]}
     local = copy.deepcopy(state)
     local.is_error = False
     local.variable_list = {}
-    local.parent_function = {"id": ast["id"].val, "type": ast["type"].val}
+    local.parent_function = {"id": ast["id"].val, "type": ast["type"].val, "is_floating_point" : ast["is_floating_point"]}
     if len(ast["parameters"]) != 0:
         i = 0
         params = []
@@ -203,6 +203,13 @@ def analyze_return(ast, state):
        res.type != state.parent_function["type"]:
         throw_error("return value mismatched with the function type", ast["keyword"])
         return None
+    if state.parent_function["is_floating_point"]:
+        if not res.is_in_memory:
+            throw_error("can't return a non-memory-stored value from precise function", ast["keyword"])
+            return None
+        ast["is_floating_point"] = True
+    else:
+        ast["is_floating_point"] = False
     state.has_return_value = True
     return res
 
@@ -394,8 +401,8 @@ def analyze_function_call(ast, state):
         throw_error("undeclared function '%s'" % ast["value"].val, ast["value"])
         return None
     #check param length
-    if len(ast["parameters"]) != len(state.function_list[ast["value"].val]["parameters"]):
-        throw_error("expected %i parameters but %i were given" % (len(state.function_list[ast["value"].val]["parameters"]), len(ast["parameters"])), ast["value"])
+    if len(ast["parameters"]) != len(res["parameters"]):
+        throw_error("expected %i parameters but %i were given" % (len(res["parameters"]), len(ast["parameters"])), ast["value"])
         return None
     #check parameters 
     i = 0
@@ -419,7 +426,10 @@ def analyze_function_call(ast, state):
             throw_error("can't pass a non-memory value to a precise parameter", ast["value"]) 
             return None
         i+=1
-    return item(ast["value"], res["type"], False, False)
+    if res["is_floating_point"]:  
+        return item(ast["value"], res["type"], False, True)
+    else:
+        return item(ast["value"], res["type"], False, False)
 
 def is_literal(val):
     if val.type == "INT"   or\
