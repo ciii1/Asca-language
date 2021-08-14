@@ -78,7 +78,7 @@ def analyze_extern(ast, state):
         i = 0
         params = []
         for param in ast["parameters"]:
-            res = fetch_function_parameter(param["expression"]["content"], state, local)
+            res = fetch_function_parameter(param, state, local)
             if res is None:
                 return None
             params.append(res)
@@ -102,7 +102,7 @@ def analyze_function_declaration(ast, state):
         i = 0
         params = []
         for param in ast["parameters"]:
-            res = fetch_function_parameter(param["expression"]["content"], state, local)
+            res = fetch_function_parameter(param, state, local)
             if res is None:
                 return None
             params.append(res)
@@ -116,23 +116,24 @@ def analyze_function_declaration(ast, state):
     return state
 
 def fetch_function_parameter(ast, state, local):
-    if ast["init"] is not None:
-        throw_error("cannot assign in parameter list", ast["id"])
+    content = ast["expression"]["content"]
+    if content["init"] is not None:
+        throw_error("cannot assign in parameter list", content["id"])
         return None
-    if state.variable_list.get(ast["id"].val) or state.function_list.get(ast["id"].val) or state.type_list.get(ast["id"].val):
-        throw_error("name %s is already exist" % ast["id"].val, ast["size"])
+    if state.variable_list.get(content["id"].val) or state.function_list.get(content["id"].val) or state.type_list.get(content["id"].val):
+        throw_error("name %s is already exist" % content["id"].val, content["size"])
         return None
-    if not state.type_list.get(ast["type"].val):
-        throw_error("undeclared type", ast["type"])
+    if not state.type_list.get(content["type"].val):
+        throw_error("undeclared type", content["type"])
         return None 
-    if size_to_number(state.type_list[ast["type"].val]["min_size"])  > size_to_number(ast["size"].val):
-        throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (ast["id"].val, ast["type"].val), ast["size"]) 
+    if size_to_number(state.type_list[content["type"].val]["min_size"])  > size_to_number(content["size"].val):
+        throw_error("the size of variable '%s' is below the minimum size of type '%s'" % (content["id"].val, content["type"].val), content["size"]) 
         return None
-    if ast["array-size"] is not None:
-        throw_error("can't use array as a parameter for a function", ast["id"])
+    if content["array-size"] is not None:
+        throw_error("can't use array as a parameter for a function", content["id"])
         return None
-    local.variable_list[ast["id"].val] = {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"]}
-    return {"size": ast["size"].val, "type": ast["type"].val, "array-size": None, "init":ast["init"], "is_floating_point": True}
+    local.variable_list[content["id"].val] = {"size": content["size"].val, "type": content["type"].val, "array-size": None, "init":content["init"]}
+    return {"size": content["size"].val, "type": content["type"].val, "array-size": None, "init":content["init"], "is_floating_point": ast["is_floating_point"]}
 
 def analyze_if(ast, state):
     if analyze_expression(ast["condition"]["content"], state) is None:

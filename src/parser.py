@@ -825,13 +825,17 @@ def parse_extern(state):
         "content" : {
             "id": None,
             "parameters": [],
-            "type": None
+            "type": None,
+            "is_floating_point": False
         }
     }
     if state.get_token().val != "extern":
         return None
-
+    
     state.inc_position()
+    if state.get_token().val == ":":
+        output["content"]["is_floating_point"] = True
+        state.inc_position()
     if state.get_token().tag != "ID":
         return None
     output["content"]["id"] = state.get_token()

@@ -122,44 +122,45 @@ def generate_function_declaration(ast, state):
     local = copy.deepcopy(state)
     local.variable_list = {}
     local.stack_position = 0
-    local.text_section = ""
-    #init to 8 for the function address that was automatically pushed when the function is called
-    i = 8
-    j = 0 #int registers counter
-    x = 0 #float registers counter
+    local.stack_section = ""
+    local.text_section = "push rbp\nmov rbp, rsp\n"
+    stack_counter = 16 #init to 16 for the function address that was automatically pushed when the function is called and for rbp that was pushed
+    int_reg_counter = 0 #int registers counter
+    float_reg_counter = 0 #float registers counter
     int_register_seq = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
-    for item in ast["parameters"]:
+    for param in ast["parameters"]:
         #move the parameters on registers to the stack
-        size = item["expression"]["content"]["size"].val
-        identifier = item["expression"]["content"]["id"].val
-        if x < 6 and item["is_floating_point"]:
+        size = param["expression"]["content"]["size"].val
+        identifier = param["expression"]["content"]["id"].val
+        if float_reg_counter < 6 and param["is_floating_point"]:
             local.text_section += "sub rsp, " + str(size_to_number(size)) + "\n"
             if size == "qword":
-                local.text_section += "movsd qword [rsp], xmm" + str(x) + "\n"
+                local.text_section += "movsd qword [rsp], xmm" + str(float_reg_counter) + "\n"
             elif size == "dword":
-                local.text_section += "movss dword [rsp], xmm" + str(x) + "\n"
+                local.text_section += "movss dword [rsp], xmm" + str(float_reg_counter) + "\n"
             else:
-                local.text_section += "movq rax, xmm" + str(x) + "\n"
+                local.text_section += "movq rax, xmm" + str(float_reg_counter) + "\n"
                 local.text_section += "mov " + size + " [rsp], " + convert_64bit_reg("rax", size) + "\n"
             local.stack_position += size_to_number(size)
             local.variable_list[identifier] = {"size": size, "position":local.stack_position}
-            x += 1
-        elif j < 6:
+            float_reg_counter += 1
+        elif int_reg_counter < 6 and not param["is_floating_point"]:
             local.text_section += "sub rsp, " + str(size_to_number(size)) + "\n"
-            local.text_section += "mov " + size + " [rsp], " + convert_64bit_reg(int_register_seq[j], size) + "\n"
+            local.text_section += "mov " + size + " [rsp], " + convert_64bit_reg(int_register_seq[int_reg_counter], size) + "\n"
             local.stack_position += size_to_number(size)
             local.variable_list[identifier] = {"size": size, "position":local.stack_position}
-            j += 1
+            float_reg_counter += 1
         else:
             #add the stack parameters to the variable list with the value from the stack
-            local.variable_list[identifier] = {"size":size, "position":-i}
-            i += size_to_number(size)
+            local.variable_list[identifier] = {"size":size, "position":-stack_counter}
+            stack_counter += size_to_number(size)
     #generate body
     local.base_stack_position = state.stack_position
     generate(ast["body"], state=local)
     state.subroutine_section += local.text_section
-    state.data_section += local.data_section
+    state.data_section = local.data_section
     state.label_count = local.label_count
+    state.data_count = local.data_count
 
 def generate_return(ast, state):
     if ast["is_floating_point"]:
@@ -186,8 +187,10 @@ def generate_return(ast, state):
             init.val = "rax"
         if init.size != "qword":
             state.text_section += "movsx rax, " + convert_64bit_reg("rax", init.size) + "\n"
-    if state.stack_position - state.base_stack_position != 0:
-        state.text_section += "add rsp, " + str(state.stack_position - state.base_stack_position) + "\n"
+    #if state.stack_position - state.base_stack_position != 0:
+        #state.text_section += "add rsp, " + str(state.stack_position - state.base_stack_position) + "\n"
+    state.text_section += "mov rsp, rbp\n"
+    state.text_section += "pop rbp\n"
     state.text_section += "ret \n"
 
 def generate_expression(ast, state, res_register="rax", is_parsing_left=True):
@@ -209,10 +212,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
             right = generate_expression(ast[2], state, "xmm3", False)
             state.add_used_register("xmm3")
         else:
-            left = generate_expression(ast[0], state, "r8", True)
-            state.add_used_register("r8")
-            right = generate_expression(ast[2], state, "r9", False)
-            state.add_used_register("r9")
+            left = generate_expression(ast[0], state, "r14", True)
+            state.add_used_register("r14")
+            right = generate_expression(ast[2], state, "r12", False)
+            state.add_used_register("r12")
     else:
         if ast[1].tag == "PRECISE_RELATIONAL_OPERATOR" or\
            ast[1].tag == "PRECISE_ASSIGNMENT_OPERATOR" or\
@@ -225,8 +228,8 @@ def generate_infix(ast, state, res_register, is_parsing_left):
         else:
             left = generate_expression(ast[0], state, "r11", False)
             state.add_used_register("r11")
-            right = generate_expression(ast[2], state, "r9", False)
-            state.add_used_register("r9")
+            right = generate_expression(ast[2], state, "r12", False)
+            state.add_used_register("r12")
     #check if both variables are constant, if yes then do a constant fold
     if right.is_constant and left.is_constant:
         if left.type == "FLOAT":
@@ -527,10 +530,14 @@ def generate_infix(ast, state, res_register, is_parsing_left):
                 if right.is_constant:
                     state.text_section += "mov " + convert_64bit_reg("rbx", right.size) + ", " + right.val + "\n"
                     right.val = "rbx"
+                if "rdx" in state.used_register:
+                    state.text_section += "mov r15, rdx\n"
                 state.text_section += "mov rdx, 0\n"
                 if not right.is_constant and not right.in_memory:
                     right.val = convert_64bit_reg(right.val, right.size)
                 state.text_section += "div " + right.size + " " + right.val + "\n"
+                if "rdx" in state.used_register:
+                    state.text_section += "mov rdx, r15\n"
                 if left.val != res_register:
                     state.text_section += "mov " + res_register + ", " + left.val + "\n"
                     left.val = res_register
@@ -674,7 +681,6 @@ def generate_unary(ast, state):
         if operand.in_memory:
             state.text_section += "lea r13, " + operand.val + "\n"
             operand.val = "r13"
-        operand.in_memory = False
         return item(operand.val, "INT", "qword", True, False) 
     elif ast[0].val == "!":
         operand = generate_expression(ast[1], state, "r13")
@@ -693,7 +699,7 @@ def generate_value(ast, state, res_register):
         return generate_function_call(ast, state, res_register)
     elif ast["context"] == "constant":
         if ast["value"].tag == "STRING":
-            val = state.add_data(ast["value"].val, "db")
+            val = state.add_data("`" + ast["value"].val[1:-1] + "`", "db")
             return item("[" + val + "]", ast["value"].tag, "byte", False, True, False)
         elif ast["value"].tag == "FLOAT":
             val = state.add_data(ast["value"].val, "dq")
@@ -732,68 +738,79 @@ def generate_function_call(ast, state, res_register):
         state.stack_position = alligned_stack
         state.text_section += "sub rsp, " + str(alligned_stack - unalligned_stack) + "\n"
     #push argument to registers (AMD64 ABI calling convention)
-    i = 0 #counter for int registers
-    j = 0 #counter for float registers
+    i = len(ast["parameters"])-1
+    int_reg_counter = -1 #counter for int registers
+    float_reg_counter = -1 #counter for float registers
+    for param in state.function_list[ast["value"].val]["parameters"]:
+        if param["is_floating_point"] and float_reg_counter <= 8:
+            float_reg_counter += 1
+        elif int_reg_counter <= 6:
+            int_reg_counter += 1
     int_register_seq = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
-    while (i <= 6 and j <= 6) and (i < len(ast["parameters"]) and j < len(ast["parameters"])):
+    total_stack_argument_size = 0
+    while i >= 0:
         arg_size = state.function_list[ast["value"].val]["parameters"][i]["size"]
         param = generate_expression(ast["parameters"][i]["content"], state)
-        if state.function_list[ast["value"].val]["parameters"][i]["is_floating_point"]:
-            if param.size == "qword":
-                state.text_section += "movsd xmm" + str(j) + ", qword " + param.val + "\n"
-            elif left.size == "dword":
-                state.text_section += "movss xmm" + str(j) + ", dword " + param.val + "\n"
+        is_floating_point = state.function_list[ast["value"].val]["parameters"][i]["is_floating_point"]
+        if float_reg_counter <= 8 and is_floating_point:
+            if param.in_memory:
+                if param.size == "qword":
+                    state.text_section += "movsd xmm" + str(float_reg_counter) + ", qword " + param.val + "\n"
+                elif left.size == "dword":
+                    state.text_section += "movss xmm" + str(float_reg_counter) + ", dword " + param.val + "\n"
+                else:
+                    state.text_section += "mov rbx, " + param.val +"\n"
+                    state.text_section += "movq xmm" + str(float_reg_counter) + ", rbx\n"
             else:
-                state.text_section += "mov rbx, " + param.val +"\n"
-                state.text_section += "movq xmm" + str(j) + ", rbx\n"
-            j+=1
-        else:
+                if is_xmm_register(param.val):
+                    state.text_section += "movsd xmm" + str(float_reg_counter) + ", " + param.val + "\n"
+                else:
+                    state.text_section += "movq xmm" + str(float_reg_counter) + ", " + param.val + "\n"
+            state.add_used_register("xmm" + str(float_reg_counter))
+            float_reg_counter -= 1
+        elif int_reg_counter <= 6 and not is_floating_point:
             if param.in_memory:
                 state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
                 param.val = "rbx"
             if param.size != "qword":
                 state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
-            state.text_section += "mov " + convert_64bit_reg(int_register_seq[i], arg_size) + ", " + convert_64bit_reg(param.val, arg_size) + "\n"
-            i+=1
-    #push argument to stack from right to left
-    i = len(ast["parameters"])-1
-    total_stack_argument_size = 0
-    while i > 6:
-        arg_size = state.function_list[ast["value"].val]["parameters"][i]["size"]
-        total_stack_argument_size += size_to_number(arg_size)
-        state.text_section += "sub rsp, " + str(size_to_number(arg_size)) + "\n"
-        state.stack_position += size_to_number(arg_size)
-        param = generate_expression(ast["parameters"][i]["content"], state)
-        if state.function_list[ast["value"].val]["parameters"][i]["is_floating_point"]:
-            if param.in_memory:
-                if param.is_writeable: #if it's a variable
-                    if param.size == "qword":
+            state.text_section += "mov " + convert_64bit_reg(int_register_seq[int_reg_counter], arg_size) + ", " + convert_64bit_reg(param.val, arg_size) + "\n"
+            state.add_used_register(int_register_seq[int_reg_counter])
+            int_reg_counter -= 1
+        else:
+            total_stack_argument_size += size_to_number(arg_size)
+            state.text_section += "sub rsp, " + str(size_to_number(arg_size)) + "\n"
+            state.stack_position += size_to_number(arg_size)
+            if is_floating_point:
+                if param.in_memory:
+                    if param.is_writeable: #if it's a variable
+                        if param.size == "qword":
+                            state.text_section += "movsd xmm0, " + param.val + "\n"
+                            param.val = "xmm0"
+                        elif param.size == "dword":
+                            state.text_section += "movss xmm0, " + param.val + "\n"
+                            param.val = "xmm0"
+                        else:
+                            state.text_section += "mov " + convert_64bit_reg("rax", param.size) + ", " + param.val + "\n"
+                            state.text_section += "movq xmm0, rax"
+                            init.val = "xmm0"
+                    else:
                         state.text_section += "movsd xmm0, " + param.val + "\n"
                         param.val = "xmm0"
-                    elif param.size == "dword":
-                        state.text_section += "movss xmm0, " + param.val + "\n"
-                        param.val = "xmm0"
-                    else:
-                        state.text_section += "mov " + convert_64bit_reg("rax", param.size) + ", " + param.val + "\n"
-                        state.text_section += "movq xmm0, rax"
-                        init.val = "xmm0"
+                if ast["size"].val == "qword":
+                    state.text_section += "movsd qword [rsp], xmm0 \n"
+                elif ast["size"].val == "dword":
+                    state.text_section += "movss dword [rsp], xmm0 \n"
                 else:
-                    state.text_section += "movsd xmm0, " + param.val + "\n"
-                    param.val = "xmm0"
-            if ast["size"].val == "qword":
-                state.text_section += "movsd qword [rsp], xmm0 \n"
-            elif ast["size"].val == "dword":
-                state.text_section += "movss dword [rsp], xmm0 \n"
+                    state.text_section += "movq rax, xmm0 \n"
+                    state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg("rax", arg_size) + "\n"
             else:
-                state.text_section += "movq rax, xmm0 \n"
-                state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg("rax", arg_size) + "\n"
-        else:
-            if param.in_memory:
-                state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
-                param.val = "rbx"
-            if param.size != "qword":
-                state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
-            state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg(param.val, arg_size) + "\n"
+                if param.in_memory:
+                    state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
+                    param.val = "rbx"
+                if param.size != "qword":
+                    state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
+                state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg(param.val, arg_size) + "\n"
         i-=1
     #call function
     state.text_section += "call " + ast["value"].val + "\n"
@@ -826,8 +843,7 @@ def generate_function_call(ast, state, res_register):
             if is_xmm_register(res_register): 
                 state.text_section += "movq " + res_register + ", rax\n"
             else:
-                state.text_section += "mov " + res_register + ", rax\n"
-        
+                state.text_section += "mov " + res_register + ", rax\n"        
     return item(res_register, "INT", "qword", False, False)
 
 def generate_if(ast, state):
@@ -857,24 +873,24 @@ def generate_if(ast, state):
     #if if and elif conditions were not fulfilled then it'll go here, wich is the else body 
     if ast["else"]:
         local = copy.deepcopy(state)
-        local.text_section = ""
         base_stack_position = local.stack_position
         generate(ast["else"]["content"]["body"], state=local)
-        state.label_count += local.label_count
-        state.text_section += local.text_section
-        state.data_section += local.data_section
+        state.text_section = local.text_section
+        state.data_section = local.data_section
+        state.label_count = local.label_count
+        state.data_count = local.data_count
         if local.stack_position - base_stack_position != 0:
             state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
     state.text_section += "jmp " + end_label + "\n"
     #generate if body
     state.text_section += if_label + ":\n"
     local = copy.deepcopy(state)
-    local.text_section = ""
     base_stack_position = local.stack_position
     generate(ast["body"], state=local)
-    state.text_section += local.text_section
-    state.data_section += local.data_section
-    state.label_count += local.label_count
+    state.text_section = local.text_section
+    state.data_section = local.data_section
+    state.label_count = local.label_count
+    state.data_count = local.data_count
     if local.stack_position - base_stack_position != 0:
         state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
     state.text_section += "jmp " + end_label + "\n"
@@ -882,12 +898,12 @@ def generate_if(ast, state):
     for label, body in elif_body:
         state.text_section += label + ":\n"
         local = copy.deepcopy(state)
-        local.text_section = ""
         base_stack_position = local.stack_position
         generate(body, state=local)
-        state.text_section += local.text_section
-        state.data_section += local.data_section
-        state.label_count += local.label_count
+        state.text_section = local.text_section
+        state.data_section = local.data_section
+        state.label_count = local.label_count
+        state.data_count = local.data_count
         if local.stack_position - base_stack_position != 0:
             state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
         state.text_section += "jmp " + end_label + "\n" 
@@ -910,17 +926,16 @@ def generate_while(ast, state):
  
     #generate `while` body
     local = copy.deepcopy(state)
-    local.text_section = ""
     local.continue_label = while_label
     break_label = "_BREAK" + str(state.label_count)
     state.label_count += 1
     local.break_label = break_label
     base_stack_position = local.stack_position
     generate(ast["body"], state=local)
-    state.text_section += local.text_section
-    state.data_section += local.data_section
-    state.label_count += local.label_count
-    state.label_count += local.label_count    
+    state.text_section = local.text_section
+    state.data_section = local.data_section
+    state.label_count = local.label_count
+    state.data_count = local.data_count
     if local.stack_position - base_stack_position != 0:
         state.text_section += "add rsp, " + str(local.stack_position - base_stack_position) + "\n"
     state.text_section += "jmp " + while_label + "\n" 
@@ -952,17 +967,16 @@ def generate_for(ast, state):
  
     #generate `for` body
     local = copy.deepcopy(state)
-    local.text_section = ""
     local.continue_label = while_label
     break_label = "_BREAK" + str(state.label_count)
     local.break_label = break_label
     state.label_count += 1
     base_stack_position = local.stack_position
     generate(ast["body"], state=local)
-    state.text_section += local.text_section
-    state.data_section += local.data_section
-    state.label_count += local.label_count
-    state.label_count += local.label_count
+    state.text_section = local.text_section
+    state.data_section = local.data_section
+    state.label_count = local.label_count
+    state.data_count = local.data_count
     if ast["increment"] == "variable_declaration":
         increment = generate_variable_declaration(ast["increment"]["content"], state)
     else:
