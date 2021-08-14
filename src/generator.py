@@ -207,10 +207,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
            ast[1].tag == "PRECISE_ASSIGNMENT_OPERATOR" or\
            ast[1].tag == "PRECISE_ARITHMETICAL_OPERATOR" or\
            ast[1].tag == "PRECISE_CONDITIONAL_OPERATOR":
-            left = generate_expression(ast[0], state, "xmm2", True)
-            state.add_used_register("xmm2")
-            right = generate_expression(ast[2], state, "xmm3", False)
-            state.add_used_register("xmm3")
+            left = generate_expression(ast[0], state, "xmm11", True)
+            state.add_used_register("xmm11")
+            right = generate_expression(ast[2], state, "xmm12", False)
+            state.add_used_register("xmm12")
         else:
             left = generate_expression(ast[0], state, "r14", True)
             state.add_used_register("r14")
@@ -221,10 +221,10 @@ def generate_infix(ast, state, res_register, is_parsing_left):
            ast[1].tag == "PRECISE_ASSIGNMENT_OPERATOR" or\
            ast[1].tag == "PRECISE_ARITHMETICAL_OPERATOR" or\
            ast[1].tag == "PRECISE_CONDITIONAL_OPERATOR":
-            left = generate_expression(ast[0], state, "xmm4", False)
-            state.add_used_register("xmm4")
-            right = generate_expression(ast[2], state, "xmm3", False)
-            state.add_used_register("xmm3")
+            left = generate_expression(ast[0], state, "xmm13", False)
+            state.add_used_register("xmm13")
+            right = generate_expression(ast[2], state, "xmm12", False)
+            state.add_used_register("xmm12")
         else:
             left = generate_expression(ast[0], state, "r11", False)
             state.add_used_register("r11")
@@ -294,22 +294,22 @@ def generate_infix(ast, state, res_register, is_parsing_left):
            ast[1].tag == "PRECISE_ARITHMETICAL_OPERATOR" or\
            ast[1].tag == "PRECISE_CONDITIONAL_OPERATOR":
             if ast[1].tag != "PRECISE_ASSIGNMENT_OPERATOR" and left.in_memory:
-                if right.val == "xmm0":
-                    state.text_section += "movssdd xmm1, xmm0\n"
-                    right.val = "xmm1"
+                if right.val == "xmm9":
+                    state.text_section += "movssdd xmm10, xmm9\n"
+                    right.val = "xmm10"
                 if left.size == "qword":
-                    state.text_section += "movsd xmm0, qword " + left.val + "\n"
+                    state.text_section += "movsd xmm9, qword " + left.val + "\n"
                 elif left.size == "dword":
-                    state.text_section += "movss xmm0, dword " + left.val + "\n"
+                    state.text_section += "movss xmm9, dword " + left.val + "\n"
                 else:
                     state.text_section += "mov rbx, " + left.val +"\n"
-                    state.text_section += "movq xmm0, rbx\n"
-                left.val = "xmm0"
+                    state.text_section += "movq xmm9, rbx\n"
+                left.val = "xmm9"
                 left.size = "qword"
             if right.size != "qword" and right.size != "dword":
                 state.text_section += "mov rbx, " + right.val + "\n"
-                state.text_section += "movq xmm1, rbx \n"
-                right.val = "xmm1"
+                state.text_section += "movq xmm10, rbx \n"
+                right.val = "xmm10"
                 right.size = "qword"
                 right.in_memory = False
             if ast[1].val == ":+":
@@ -435,8 +435,8 @@ def generate_infix(ast, state, res_register, is_parsing_left):
             elif ast[1].val == ":||":
                 if right.in_memory:
                     state.text_section += "mov " + convert_64bit_reg("rbx", right.val) + ", " + right.val + "\n"
-                    state.text_section += "movq xmm1, rbx\n"
-                    right.val = "xmm1"
+                    state.text_section += "movq xmm10, rbx\n"
+                    right.val = "xmm10"
                 state.text_section += "por " + left.val + ", " + right.val + "\n"
                 if left.val != res_register:
                     state.text_section += "movq " + res_register + ", " + left.val + "\n"
@@ -445,8 +445,8 @@ def generate_infix(ast, state, res_register, is_parsing_left):
             elif ast[1].val == ":&&":
                 if right.in_memory:
                     state.text_section += "mov " + convert_64bit_reg("rbx", right.val) + ", " + right.val + "\n"
-                    state.text_section += "movq xmm1, rbx\n"
-                    right.val = "xmm1"
+                    state.text_section += "movq xmm10, rbx\n"
+                    right.val = "xmm10"
                 state.text_section += "pand " + left.val + ", " + right.val + "\n"
                 if left.val != res_register:
                     state.text_section += "movq " + res_register + ", " + left.val + "\n"
@@ -455,13 +455,13 @@ def generate_infix(ast, state, res_register, is_parsing_left):
             elif ast[1].val == ":=":
                 if right.in_memory:
                     if right.size == "qword":
-                        state.text_section += "movsd xmm1, qword " + right.val + "\n"
+                        state.text_section += "movsd xmm10, qword " + right.val + "\n"
                     elif right.size == "dword":
-                        state.text_section += "movss xmm1, dword " + right.val + "\n"
+                        state.text_section += "movss xmm10, dword " + right.val + "\n"
                     else:
                         state.text_section += "mov " + convert_64bit_reg("rax", right.size) + ", " + right.size + " " + right.val +"\n"
-                        state.text_section += "movq xmm1, rax\n"
-                    right.val = "xmm1"
+                        state.text_section += "movq xmm10, rax\n"
+                    right.val = "xmm10"
                 if left.size == "qword":
                     state.text_section += "movsd qword " + left.val + ", " + right.val + "\n"
                 elif left.size == "dword":
