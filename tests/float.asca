@@ -1,10 +1,18 @@
 type Float;
+type Ptr;
+type Str;
 type Int;
 type Void;
 
-func _start():Void {
-	qword a:Float := 1.0;
-	qword b:Float := 2.0;
-	qword c:Float := 0.5;	
-	return (a :/ b) :== c;
-} global _start;
+extern printf(qword format:Ptr, :qword a:Float):Void;
+
+func :fadd(:qword a:Float, :qword b:Float):Float {
+	printf(@"%d\n\0", a); 
+	return 1.2;
+}
+
+func main():Float {
+	qword a:Float := 1.5;
+	fadd(1.5 :+ a :+ a :* 2.0, 1.5 :+ a :* 2.0);
+	return 0;
+} global main;

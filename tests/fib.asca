@@ -1,14 +1,15 @@
-/*
-*Date: /2021/07/18/12:02/
-*/
-
 type Int;
+type Ptr;
+type Void;
+
+extern printf(qword format:Ptr, qword int:Int, qword int2:Int):Void;
 
 func fib(dword num:Int):Int {
-	qword x:Int = 0;
+	qword x:Int;
 	qword y:Int = 1;
 	qword z:Int;
-	for(dword i:Int = 1; i < num; i+=1) {
+	for(dword i:Int = 0; i < num; i+=1) {
+		printf(@"%i: %i\n\0", i+1, z);
 		z = x+y;
 		y = x;
 		x = z;	
@@ -17,6 +18,6 @@ func fib(dword num:Int):Int {
 }
 
 func main():Int {
-	fib(5); //print the fibonacci numbers untill 5, wich is 3 (if you count from 1)	
+	fib(5); //print the fibonacci numbers until 5, wich is 3 (if you count from 1)	
 	return 0;
 } global main;

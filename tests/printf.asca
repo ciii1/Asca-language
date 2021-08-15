@@ -1,0 +1,115 @@
+type Void;
+type Ptr;
+type Int;
+
+extern printf(
+	qword format:Ptr, 
+	qword int1:Int, 
+	qword int2:Int, 
+	qword int3:Int, 
+	qword int4:Int, 
+	qword int5:Int, 
+	qword int6:Int, 
+	qword int_more:Ptr
+):Void;
+extern puts(qword msg:Ptr):Void;
+
+/*
+asca version of printf, printfa.
+Basically printf, but because asca doesn't have infinite args, it uses array instead.
+(!) The int array argument is qword.
+*/
+func printfa(qword format:Ptr, qword ints_ptr:Ptr, qword int_len:Int): Void {
+	if(int_len == 6) {
+		printf(
+			format, 
+			$(qword)ints_ptr, 
+			$(qword)ints_ptr+8, 
+			$(qword)ints_ptr+16, 
+			$(qword)ints_ptr+24, 
+			$(qword)ints_ptr+32, 
+			$(qword)ints_ptr+40,
+			$(qword)ints_ptr+48
+		);
+	} elif(int_len == 5) {
+		printf(
+			format, 
+			$(qword)ints_ptr, 
+			$(qword)ints_ptr+8, 
+			$(qword)ints_ptr+16, 
+			$(qword)ints_ptr+24, 
+			$(qword)ints_ptr+32, 
+			$(qword)ints_ptr+40,
+			0
+		);
+	} elif(int_len == 4) {
+		printf(
+			format, 
+			$(qword)ints_ptr, 
+			$(qword)(ints_ptr+8), 
+			$(qword)(ints_ptr+16), 
+			$(qword)(ints_ptr+24), 
+			$(qword)(ints_ptr+32), 
+			0,
+			0
+		);
+	} elif(int_len == 3) {
+		printf(
+			format, 
+			$(qword)ints_ptr, 
+			$(qword)ints_ptr+8, 
+			$(qword)ints_ptr+16, 
+			$(qword)ints_ptr+24, 
+			0,
+			0,
+			0
+		);
+	} elif(int_len == 2) {
+		printf(
+			format, 
+			$(qword)ints_ptr, 
+			$(qword)ints_ptr+8, 
+			$(qword)ints_ptr+16, 
+			0,
+			0,
+			0,
+			0
+		);
+	} elif(int_len == 1) {
+		printf(
+			format, 
+			$(qword)ints_ptr, 
+			$(qword)ints_ptr+8, 
+			0,
+			0,
+			0,
+			0,
+			0
+		);
+	} elif(int_len == 0) {
+		printf(
+			format, 
+			0,
+			0,
+			0,
+			0,
+			0,
+			0,
+			0
+		);
+	}
+	return 0;
+}
+
+func main():Int {
+	qword[7] ints:Int;
+	ints[0] = 10;
+	ints[1] = 2;
+	ints[2] = 4;
+	ints[3] = 1;
+	ints[4] = 0;
+	ints[5] = 1;
+	ints[6] = 1;
+	printfa(@"1:%i\n2:%i\n3:%i\n4:%i\n5:%i\n6:%i\n7:%i\n\0", @ints, 6);
+	return 0;
+} global main;
