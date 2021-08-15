@@ -108,6 +108,7 @@ def analyze_function_declaration(ast, state):
             params.append(res)
             i += 1
         state.function_list[ast["id"].val]["parameters"] = params
+    local.function_list = state.function_list
     if analyze(ast["body"], local).is_error:
         return None
     if not local.has_return_value:
