@@ -149,7 +149,7 @@ def generate_function_declaration(ast, state):
             local.text_section += "mov " + size + " [rsp], " + convert_64bit_reg(int_register_seq[int_reg_counter], size) + "\n"
             local.stack_position += size_to_number(size)
             local.variable_list[identifier] = {"size": size, "position":local.stack_position}
-            float_reg_counter += 1
+            int_reg_counter += 1
         else:
             #add the stack parameters to the variable list with the value from the stack
             local.variable_list[identifier] = {"size":size, "position":-stack_counter}
@@ -681,7 +681,7 @@ def generate_unary(ast, state):
         if operand.in_memory:
             state.text_section += "lea r13, " + operand.val + "\n"
             operand.val = "r13"
-        return item(operand.val, "INT", "qword", True, False) 
+        return item(operand.val, "INT", "qword", False, False) 
     elif ast[0].val == "!":
         operand = generate_expression(ast[1], state, "r13")
         if operand.is_constant or operand.in_memory:
@@ -738,21 +738,27 @@ def generate_function_call(ast, state, res_register):
         state.stack_position = alligned_stack
         state.text_section += "sub rsp, " + str(alligned_stack - unalligned_stack) + "\n"
     #push argument to registers (AMD64 ABI calling convention)
-    i = len(ast["parameters"])-1
     int_reg_counter = -1 #counter for int registers
     float_reg_counter = -1 #counter for float registers
+    int_param_counter = 0
+    float_param_counter = 0
+    total_param_counter = len(ast["parameters"])-1
     for param in state.function_list[ast["value"].val]["parameters"]:
-        if param["is_floating_point"] and float_reg_counter <= 8:
-            float_reg_counter += 1
-        elif int_reg_counter <= 6:
-            int_reg_counter += 1
+        if param["is_floating_point"]:
+            if float_reg_counter < 7:
+                float_reg_counter += 1
+            float_param_counter += 1
+        else:
+            if int_reg_counter < 5:
+                int_reg_counter += 1
+            int_param_counter += 1
     int_register_seq = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
     total_stack_argument_size = 0
-    while i >= 0:
-        arg_size = state.function_list[ast["value"].val]["parameters"][i]["size"]
-        param = generate_expression(ast["parameters"][i]["content"], state)
-        is_floating_point = state.function_list[ast["value"].val]["parameters"][i]["is_floating_point"]
-        if float_reg_counter <= 8 and is_floating_point:
+    while total_param_counter >= 0:
+        arg_size = state.function_list[ast["value"].val]["parameters"][total_param_counter]["size"]
+        param = generate_expression(ast["parameters"][total_param_counter]["content"], state)
+        is_floating_point = state.function_list[ast["value"].val]["parameters"][total_param_counter]["is_floating_point"]
+        if float_param_counter <= 8 and is_floating_point:
             if param.in_memory:
                 if param.size == "qword":
                     state.text_section += "movsd xmm" + str(float_reg_counter) + ", qword " + param.val + "\n"
@@ -768,7 +774,7 @@ def generate_function_call(ast, state, res_register):
                     state.text_section += "movq xmm" + str(float_reg_counter) + ", " + param.val + "\n"
             state.add_used_register("xmm" + str(float_reg_counter))
             float_reg_counter -= 1
-        elif int_reg_counter <= 6 and not is_floating_point:
+        elif int_param_counter <= 6 and not is_floating_point:
             if param.in_memory:
                 state.text_section += "mov " + convert_64bit_reg("rbx", param.size) + ", " + param.val + "\n"
                 param.val = "rbx"
@@ -811,7 +817,11 @@ def generate_function_call(ast, state, res_register):
                 if param.size != "qword":
                     state.text_section += "movsx " + param.val + ", " + convert_64bit_reg(param.val, param.size) + "\n"
                 state.text_section += "mov " + arg_size + " [rsp], " + convert_64bit_reg(param.val, arg_size) + "\n"
-        i-=1
+        if is_floating_point:
+            float_param_counter -= 1
+        else:
+            int_param_counter -= 1
+        total_param_counter-=1
     #call function
     state.text_section += "call " + ast["value"].val + "\n"
     #remove arguments on stack
