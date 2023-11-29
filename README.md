@@ -9,8 +9,8 @@ you can find it [here](docs/docs.md)
 ### TODO
 - [X] Floating point values and `precise-operators`
 - [X] Generate `while` and `for` loops
-- [ ] SysV ABI function call convention
-- [ ] Link with C libraries
+- [X] SysV ABI function call convention
+- [X] Link with C libraries
 - [ ] Add operators to do unsigned operations
 - [ ] Refactor the whole source code                
 
